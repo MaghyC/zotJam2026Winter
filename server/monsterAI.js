@@ -306,7 +306,8 @@ class MonsterAI {
    * Monster attacks a player
    */
   attackPlayer(monster, player) {
-    const damage = player.maxHealth * CONFIG.MONSTER_ATTACK_DAMAGE_PERCENT;
+    const damage = CONFIG.MONSTERATTACKDAMAGEPERCENT * CONFIG.PLAYERMAXHEALTH;
+
     const newHealth = this.gameState.damagePlayer(player.id, damage);
 
     logger.info(`Monster ${monster.id} attacked player ${player.id} (damage: ${damage.toFixed(1)}, health: ${newHealth.toFixed(1)})`);

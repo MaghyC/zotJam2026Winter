@@ -358,26 +358,17 @@ io.on('connection', (socket) => {
   /**
    * blink_action - Player attempts to blink
    */
-  socket.on('blink_action', (data) => {
+  socket.on("blink_action", (data) => {
     if (!lobbyId) return;
 
     const gameState = lobbyManager.getLobby(lobbyId);
-    if (!gameState) return;
+    if (!gameState || !gameState.active) return;
 
     const canBlink = gameState.canBlink(playerId);
     if (canBlink) {
-      gameState.executeBlink(playerId, CONFIG.PLAYER_BLINK_MAX_TIME / 1000);
-
-      // Broadcast blink to others
-      socket.to(lobbyId).emit('blink_action', { playerId });
-
-      socket.emit('blink_response', { success: true });
-    } else {
-      const remaining = gameState.getBlinkCooldownRemaining(playerId);
-      socket.emit('blink_response', {
-        success: false,
-        cooldownRemaining: remaining,
-      });
+      gameState.executeBlink(playerId, CONFIG.PLAYERBLINKMAXTIME / 1000);
+      socket.to(lobbyId).emit("blink_action", { playerId });
+      socket.emit("blink_response", { success: true });
     }
   });
 

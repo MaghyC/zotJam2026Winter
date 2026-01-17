@@ -16,6 +16,7 @@ class UIManager {
       hudStatus: document.getElementById('hudStatus'),
       blinkTimerPanel: document.getElementById('blinkTimerPanel'),
       blinkTimerValue: document.getElementById('blinkTimerValue'),
+      blinkTimerSidebarValue: document.getElementById('blinkTimerSidebarValue'),
       minimap: document.getElementById('minimap'),
       messages: document.getElementById('messages'),
       matchEndScreen: document.getElementById('matchEndScreen'),
@@ -47,6 +48,7 @@ class UIManager {
     this.elements.hudOrbs.textContent = player.orbsCollected || 0;
 
     const playerCount = gameState?.players?.length || 0;
+    console.log('[UI] Updating player count display:', playerCount, 'gameState.players:', gameState?.players);
     this.elements.hudPlayers.textContent = `${playerCount}/8`;
 
     const monsterCount = gameState?.monsters?.length || 0;
@@ -60,7 +62,7 @@ class UIManager {
   }
 
   /**
-   * Update blink timer display
+   * Update blink timer display (both center panel and sidebar)
    */
   updateBlinkTimer(secondsRemaining) {
     if (secondsRemaining > 0) {
@@ -80,6 +82,21 @@ class UIManager {
     } else {
       this.elements.blinkTimerPanel.style.display = 'none';
     }
+
+    // Update sidebar with 0.1s precision
+    this.elements.blinkTimerSidebarValue.textContent = secondsRemaining.toFixed(1) + 's';
+
+    // Color code the sidebar
+    const percent = secondsRemaining / 20;
+    let sidebarColor;
+    if (percent > 0.6) {
+      sidebarColor = '#00ff00';
+    } else if (percent > 0.3) {
+      sidebarColor = '#ffff00';
+    } else {
+      sidebarColor = '#ff0000';
+    }
+    this.elements.blinkTimerSidebarValue.style.color = sidebarColor;
   }
 
   /**

@@ -13,14 +13,20 @@ class GameScene {
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-
     this.playerMeshes = new Map();
     this.monsterMeshes = new Map();
     this.orbMeshes = new Map();
     this.arenaSafeRadius = 100;
 
+    // Fullscreen black overlay for blink effect
+    this.blackOverlay = null;
+
     this.init();
+    // Create black overlay for blink
+    this.createBlackOverlay();
+
   }
+
 
   /**
    * Initialize Three.js scene
@@ -161,24 +167,32 @@ class GameScene {
    */
   updatePlayers(players) {
     const serverIds = new Set();
+    const localPlayerId = window.gameClient?.network?.playerId;
 
     for (const player of players) {
       serverIds.add(player.id);
 
+      // Skip rendering local player (first-person view)
+      if (player.id === localPlayerId) {
+        continue;
+      }
+
       let mesh = this.playerMeshes.get(player.id);
       if (!mesh) {
-        // Create new player mesh
-        const geom = new THREE.CapsuleGeometry(0.4, 1.8, 4, 8);
+        // Create new player mesh for OTHER players
+        const geom = new THREE.BoxGeometry(1, 2, 1, 1, 1, 1);
         const mat = new THREE.MeshStandardMaterial({
           color: player.attachmentState === 'ATTACHED' ? 0x00ff00 : 0x0066ff,
           metalness: 0.3,
-          roughness: 0.6
+          roughness: 0.6,
+          emissive: player.attachmentState === 'ATTACHED' ? 0x00aa00 : 0x0044aa
         });
         mesh = new THREE.Mesh(geom, mat);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         this.scene.add(mesh);
         this.playerMeshes.set(player.id, mesh);
+        console.log('[Scene] Created mesh for player:', player.id, player.username);
       }
 
       // Update position and rotation
@@ -216,7 +230,7 @@ class GameScene {
       let mesh = this.monsterMeshes.get(monster.id);
       if (!mesh) {
         // Create new monster mesh
-        const geom = new THREE.IcosahedronGeometry(0.8, 4);
+        const geom = new THREE.IcosahedronGeometry(2, 4);
         const mat = new THREE.MeshStandardMaterial({
           color: 0xff3333,
           metalness: 0.6,
@@ -344,7 +358,14 @@ class GameScene {
    * Render the scene
    */
   render() {
+    this.renderer.autoClear = true;
     this.renderer.render(this.scene, this.camera);
+
+    if (this.blackOverlay && this.blackOverlay.visible) {
+      this.renderer.autoClear = false;
+      this.renderer.render(this.overlayScene, this.camera);
+      this.renderer.autoClear = true;
+    }
   }
 
   /**
@@ -357,4 +378,32 @@ class GameScene {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
   }
+
+  /**
+ * Create a fullscreen black overlay DOM element
+ */
+  // New method in GameScene
+  createBlackOverlay() {
+    const geom = new THREE.PlaneGeometry(2, 2);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 1 });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.position.z = -1;
+    this.blackOverlay = mesh;
+
+    // Use orthographic full-screen quad via camera's post-processing-like layer
+    const overlayScene = new THREE.Scene();
+    overlayScene.add(mesh);
+    this.overlayScene = overlayScene;
+  }
+
+
+  /**
+   * Turn black overlay on/off
+   */
+  setBlackOverlay(enabled) {
+    if (!this.blackOverlay) return;
+    this.blackOverlay.visible = enabled;
+  }
+
+
 }

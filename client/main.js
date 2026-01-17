@@ -21,6 +21,9 @@ class GameClient {
     // Player identity
     this.playerId = null;
     this.username = null;
+
+    // Track collected orbs to avoid duplicate collection attempts
+    this.collectedOrbIds = new Set();
   }
 
   /**
@@ -282,6 +285,17 @@ class GameClient {
       this.localPlayer = data.players.find(p => p.id === this.network.playerId);
     }
 
+    // Clean up collected orbs set (remove orbs that are no longer in the game)
+    const activeOrbIds = new Set((data.orbs || []).map(o => o.id));
+    for (const orbId of this.collectedOrbIds) {
+      if (!activeOrbIds.has(orbId)) {
+        this.collectedOrbIds.delete(orbId);
+      }
+    }
+
+    // Check and collect nearby orbs
+    this.checkOrbCollection(data.orbs || []);
+
     // Update scene
     if (this.scene) {
       this.scene.updatePlayers(data.players || []);
@@ -301,6 +315,35 @@ class GameClient {
 
       // Draw minimap
       this.ui.drawMinimap(this.localPlayer, data, 100);
+    }
+  }
+
+  /**
+   * Check if player is close to any orbs and collect them
+   * ORB_COLLECTION_RADIUS: 2.5 units (generous for easier collection)
+   */
+  checkOrbCollection(orbs) {
+    if (!this.controller || !Array.isArray(orbs)) return;
+
+    const ORB_COLLECTION_RADIUS = 2.5; // Generous radius for collection
+    const playerPos = this.controller.position;
+
+    for (const orb of orbs) {
+      // Skip if already collected or already attempted
+      if (orb.collected || this.collectedOrbIds.has(orb.id)) continue;
+
+      // Calculate distance to orb
+      const dx = orb.position.x - playerPos.x;
+      const dy = orb.position.y - playerPos.y;
+      const dz = orb.position.z - playerPos.z;
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      // If close enough, collect it
+      if (distance <= ORB_COLLECTION_RADIUS) {
+        this.collectedOrbIds.add(orb.id);
+        this.network.sendCollectOrb(orb.id);
+        console.log('[Main] Orb collected:', orb.id, 'distance:', distance.toFixed(2));
+      }
     }
   }
 

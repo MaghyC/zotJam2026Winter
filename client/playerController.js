@@ -6,6 +6,7 @@
  */
 
 class PlayerController {
+  // TOP OF CLASS (after constructor fields)
   constructor(scene, network) {
     this.scene = scene;
     this.network = network;
@@ -13,11 +14,16 @@ class PlayerController {
     // Local player state
     this.position = { x: 0, y: 1, z: 0 };
     this.rotation = { x: 0, y: 0, z: 0 }; // pitch, yaw, roll
-    this.gaze = { x: 0, y: 0, z: 1 }; // normalized direction facing
+    this.gaze = { x: 0, y: 0, z: 1 };     // normalized direction facing
 
     // Input state
     this.keys = {};
     this.mouseDelta = { x: 0, y: 0 };
+
+    // Blink timing
+    this.lastAutoBlinkTime = Date.now();   // auto-blink timer start
+    this.isScreenBlack = false;           // black screen effect flag
+    this.blackScreenEndTime = 0;          // when to end black screen
 
     // Attachment state (local tracking)
     this.isAttached = false;
@@ -31,6 +37,41 @@ class PlayerController {
     // Setup event listeners
     this.setupInputListeners();
   }
+  // HANDLE DISCRETE KEYS
+  handleKeyDown(event) {
+    const key = event.key.toLowerCase();
+
+    // Blink action (manual, refresh auto timer)
+    if (key === 'r') {
+      this.triggerBlink();           // local visual blink + timer reset
+      this.network.sendBlink();      // tell server to blink
+      return;
+    }
+
+    // Attachment requests
+    if (key === 'v') {
+      this.handleVPress();
+      return;
+    }
+
+    if (key === 'x') {
+      this.handleXPress();
+      return;
+    }
+
+    // Detach (requires double press)
+    if (key === 'u') {
+      this.handleUPress();
+      return;
+    }
+
+    // Broadcast blink timer to nearby
+    if (key === 'i') {
+      this.network.sendBlinkTimerBroadcast();
+      return;
+    }
+  }
+
 
   /**
    * Set up keyboard and mouse input listeners
@@ -136,7 +177,24 @@ class PlayerController {
    * Update local player state based on input
    * Called every frame
    */
+  /**
+ * Update local player state based on input
+ * Called every frame
+ */
   update(deltaTime) {
+    const now = Date.now();
+
+    // Auto blink every 15 seconds if not manually refreshed
+    if (now - this.lastAutoBlinkTime >= 15000) {
+      this.triggerBlink();
+      this.network.sendBlink();
+    }
+
+    // End black screen after 0.3 seconds
+    if (this.isScreenBlack && now >= this.blackScreenEndTime) {
+      this.isScreenBlack = false;
+    }
+
     // Update position based on WASD input
     this.updateMovement(deltaTime);
 
@@ -159,56 +217,120 @@ class PlayerController {
     }
   }
 
+
+  // In handleKeyDown
+
+
+
   /**
    * Update player position based on WASD movement
    */
+  /**
+ * Update player position based on WASD movement
+ * W = forward (toward gaze)
+ * S = backward
+ * A = 90° left of gaze
+ * D = 90° right of gaze
+ *//**
+                                   * Update player position based on WASD movement
+                                   * W = forward (toward gaze)
+                                   * S = backward
+                                   * A = 90° left of gaze
+                                   * D = 90° right of gaze
+                                   */
   updateMovement(deltaTime) {
-    const FORWARD_SPEED = 15; // units/second
-    const BACKWARD_SPEED = 7.5; // 50% of forward
-    const STRAFE_SPEED = 12;
-    const MOVEMENT_DAMPING = 0.95; // friction
+    const MOVE_SPEED = 20; // units per second (tweak as needed)
+
+    // Horizontal forward direction from gaze (y ignored)
+    const forward = {
+      x: this.gaze.x,
+      z: this.gaze.z
+    };
+    const forwardLen = Math.sqrt(forward.x * forward.x + forward.z * forward.z) || 1;
+    forward.x /= forwardLen;
+    forward.z /= forwardLen;
+
+    // Right is +90° from forward (in XZ plane)
+    const right = {
+      x: forward.z,
+      z: -forward.x
+    };
 
     let moveX = 0;
     let moveZ = 0;
 
-    // Forward/backward
-    if (this.keys['w'] || this.keys['arrowup']) {
-      moveZ += FORWARD_SPEED * deltaTime;
+    if (this.keys['w']) {
+      moveX -= forward.x;
+      moveZ -= forward.z;
     }
-    if (this.keys['s'] || this.keys['arrowdown']) {
-      moveZ -= BACKWARD_SPEED * deltaTime;
+    if (this.keys['s']) {
+      moveX += forward.x;
+      moveZ += forward.z;
     }
-
-    // Strafe left/right
-    if (this.keys['a'] || this.keys['arrowleft']) {
-      moveX -= STRAFE_SPEED * deltaTime;
+    if (this.keys['a']) {
+      moveX -= right.x;
+      moveZ -= right.z;
     }
-    if (this.keys['d'] || this.keys['arrowright']) {
-      moveX += STRAFE_SPEED * deltaTime;
-    }
-
-    // Apply rotation to movement (move in direction player is facing)
-    const cosY = Math.cos(this.rotation.y);
-    const sinY = Math.sin(this.rotation.y);
-
-    this.position.x += moveX * cosY - moveZ * sinY;
-    this.position.z += moveX * sinY + moveZ * cosY;
-
-    // Keep player in arena bounds (circular boundary at radius 90)
-    const distFromCenter = Math.sqrt(
-      this.position.x * this.position.x + this.position.z * this.position.z
-    );
-    const maxRadius = 90;
-
-    if (distFromCenter > maxRadius) {
-      const scale = maxRadius / distFromCenter;
-      this.position.x *= scale;
-      this.position.z *= scale;
+    if (this.keys['d']) {
+      moveX += right.x;
+      moveZ += right.z;
     }
 
-    // Keep player above ground
-    this.position.y = Math.max(0, this.position.y);
+    const moveLen = Math.sqrt(moveX * moveX + moveZ * moveZ);
+    if (moveLen > 0) {
+      moveX /= moveLen;
+      moveZ /= moveLen;
+
+      const distance = MOVE_SPEED * deltaTime;
+      const newX = this.position.x + moveX * distance;
+      const newZ = this.position.z + moveZ * distance;
+
+      // Simple collision: reuse server obstacle layout
+      if (!this.isPositionBlocked(newX, newZ)) {
+        this.position.x = newX;
+        this.position.z = newZ;
+      } else {
+        // Try sliding on X axis
+        if (!this.isPositionBlocked(newX, this.position.z)) {
+          this.position.x = newX;
+        } else if (!this.isPositionBlocked(this.position.x, newZ)) {
+          // Or sliding on Z axis
+          this.position.z = newZ;
+        }
+      }
+    }
   }
+
+
+  /**
+   * Client-side collision check using same boxes as server
+   */
+
+
+  isPositionBlocked(x, z) {
+    const obstacles = [
+      { x: 40, z: 40, w: 8, d: 8 },
+      { x: -50, z: 30, w: 6, d: 6 },
+      { x: 0, z: -60, w: 10, d: 10 },
+      { x: -40, z: -40, w: 5, d: 5 },
+      { x: 60, z: -20, w: 7, d: 7 },
+      { x: -30, z: 0, w: 6, d: 6 }
+    ];
+
+    for (const obs of obstacles) {
+      const minX = obs.x - obs.w / 2;
+      const maxX = obs.x + obs.w / 2;
+      const minZ = obs.z - obs.d / 2;
+      const maxZ = obs.z + obs.d / 2;
+
+      if (x >= minX && x <= maxX && z >= minZ && z <= maxZ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+
 
   /**
    * Update rotation based on mouse movement
@@ -258,6 +380,21 @@ class PlayerController {
       this.gaze.z /= gazeLen;
     }
   }
+  /**
+ * Trigger a blink:
+ * - screen black for 0.3s
+ * - refresh 15s timer
+ */
+  triggerBlink() {
+    const now = Date.now();
+    this.lastAutoBlinkTime = now;
+    this.isScreenBlack = true;
+    this.blackScreenEndTime = now + 300;
+    document.body.style.opacity = 0;
+    setTimeout(() => { document.body.style.opacity = 1; }, 300);
+
+  }
+
 
   /**
    * Set player position from server correction

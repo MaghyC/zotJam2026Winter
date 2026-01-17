@@ -35,7 +35,7 @@ const ATTACHMENT_STATES = {
   ATTACHED: 'attached',
 };
 
-const ORB_SCORE_VALUE = 1;
+const ORB_SCORE_VALUE = 10;
 
 /**
  * GameState - manages state for a single lobby/match
@@ -291,7 +291,7 @@ class GameState {
     if (player && player.health > 0) {
       player.health = Math.max(0, player.health - damage);
       player.lastAttackTime = Date.now();
-      if (player.health <= 0) {
+      if (player && player.health <= 0) {
         player.state = PLAYER_STATES.DEAD;
         logger.info(`Player ${playerId} died in lobby ${this.lobbyId}`);
       }
