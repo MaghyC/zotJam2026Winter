@@ -249,7 +249,7 @@ class LobbyManager {
    * Get all lobbies (for admin/debug)
    */
   getAllLobbies() {
-    return Array.from(this.lobbies.values());
+    return Array.from(this.lobbies.entries()); // [lobbyId, gameState]
   }
 }
 

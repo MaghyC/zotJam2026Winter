@@ -142,6 +142,10 @@ class GameClient {
     try {
       this.hideLoginScreen();
 
+      // Show loading screen during connection
+      const loadingScreen = document.getElementById('loadingScreen');
+      loadingScreen.classList.add('show');
+
       // Initialize UI
       this.ui = new UIManager();
       this.ui.showMessage('Connecting to server...', 'normal');
@@ -155,7 +159,11 @@ class GameClient {
         this.playerId = storedPlayerId;
       }
 
-      await this.network.connect(this.username, this.playerId);
+      // Setup network callbacks BEFORE connecting
+      this.setupNetworkCallbacks();
+
+      // Connect and wait for join response
+      const joinData = await this.network.connect(this.username, this.playerId);
 
       // Store the received player ID
       this.playerId = this.network.playerId;
@@ -164,18 +172,8 @@ class GameClient {
 
       console.log('[Main] Connected with ID:', this.playerId);
 
-      // Setup network callbacks
-      this.setupNetworkCallbacks();
-
-      // Wait for join response
-      await new Promise((resolve) => {
-        const onJoined = (data) => {
-          this.network.off('joined_lobby', onJoined);
-          this.onLobbyJoined(data);
-          resolve();
-        };
-        this.network.on('joined_lobby', onJoined);
-      });
+      // Handle lobby join
+      this.onLobbyJoined(joinData);
 
       // Initialize Three.js scene
       this.scene = new GameScene(document.getElementById('gameContainer'));
@@ -184,8 +182,8 @@ class GameClient {
       // Initialize player controller
       this.controller = new PlayerController(this.scene, this.network);
 
-      // Hide loading screen
-      this.ui.hideLoading();
+      // Hide loading screen and show game
+      loadingScreen.classList.remove('show');
       this.ui.showMessage(`Welcome ${this.username}! Use WASD to move, mouse to look`, 'normal');
 
       // Start render loop

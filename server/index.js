@@ -99,55 +99,51 @@ function stopGameLoop() {
 /**
  * Update all active lobbies (game logic tick)
  */
-function updateAllLobbies(deltaTime) {
-  for (const [lobbyId, gameState] of lobbyManager.getAllLobbies().entries ?
-    lobbyManager.getAllLobbies().entries() :
-    lobbyManager.getAllLobbies().map(gs => [gs.lobbyId, gs])) {
 
+// index.js
+function updateAllLobbies(deltaTime) {
+  for (const [lobbyId, gameState] of lobbyManager.getAllLobbies()) {
     if (!gameState || !gameState.active) continue;
 
-    // Update monsters
     const monsterAI = monsterAIByLobby.get(lobbyId);
     if (monsterAI) {
       monsterAI.updateAllMonsters(deltaTime);
     }
 
-    // Regenerate player health
     const livingPlayers = gameState.getLivingPlayers();
     for (const player of livingPlayers) {
       gameState.regenPlayer(player.id, CONFIG.PLAYER_REGEN_AMOUNT);
     }
 
-    // Update arena shrinking (simple linear shrink after initial delay)
     const matchTime = gameState.getMatchElapsedTime();
     if (matchTime > CONFIG.ARENA_SHRINK_START_TIME) {
       const timeShrinking = matchTime - CONFIG.ARENA_SHRINK_START_TIME;
       const shrinkProgress = Math.min(1, timeShrinking / CONFIG.ARENA_SHRINK_DURATION);
-      gameState.arenaSafeRadius = CONFIG.ARENA_RADIUS -
+      gameState.arenaSafeRadius =
+        CONFIG.ARENA_RADIUS -
         (CONFIG.ARENA_RADIUS - CONFIG.ARENA_FINAL_RADIUS) * shrinkProgress;
     }
 
-    // Check if match should end
-    const shouldEnd = livingPlayers.length <= 1 || gameState.arenaSafeRadius <= CONFIG.ARENA_FINAL_RADIUS;
+    const shouldEnd =
+      livingPlayers.length <= 1 ||
+      gameState.arenaSafeRadius <= CONFIG.ARENA_FINAL_RADIUS;
     if (shouldEnd && gameState.active) {
       endLobbyMatch(lobbyId);
     }
   }
 }
 
+
 /**
  * Broadcast lobby state to all clients
  */
 function broadcastAllLobbies() {
-  const lobbies = Array.isArray(lobbyManager.getAllLobbies()) ?
-    lobbyManager.getAllLobbies() :
-    Array.from(lobbyManager.getAllLobbies());
-
-  for (const gameState of lobbies) {
+  for (const [, gameState] of lobbyManager.getAllLobbies()) {
     if (!gameState.active) continue;
     broadcastLobbyState(gameState);
   }
 }
+
 
 /**
  * Send current lobby state to all players in that lobby

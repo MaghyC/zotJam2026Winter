@@ -285,22 +285,21 @@ class GameState {
   /**
    * Damage a player from monster attack
    */
-  damagePlayer(playerId, damagePercent) {
+  // gameState.js
+  damagePlayer(playerId, damage) {
     const player = this.players.get(playerId);
     if (player && player.health > 0) {
-      const damage = player.maxHealth * damagePercent;
       player.health = Math.max(0, player.health - damage);
       player.lastAttackTime = Date.now();
-
       if (player.health <= 0) {
         player.state = PLAYER_STATES.DEAD;
         logger.info(`Player ${playerId} died in lobby ${this.lobbyId}`);
       }
-
       return player.health;
     }
     return 0;
   }
+
 
   /**
    * Heal a player over time (called every regen interval)
@@ -321,28 +320,31 @@ class GameState {
   spawnMonster(monsterId, position, behaviour) {
     logger.debug(`Monster ${monsterId} spawned in lobby ${this.lobbyId}`);
 
+    // In GameState.spawnMonster
     this.monsters.set(monsterId, {
       id: monsterId,
       position: { ...position },
       velocity: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
+      gaze: { x: 0, y: 0, z: 1 }, // ensure default forward direction
       state: MONSTER_STATES.ROARING,
-      health: 50,
-      maxHealth: 50,
+      health: CONFIG.MONSTER_MAX_HEALTH,
+      maxHealth: CONFIG.MONSTER_MAX_HEALTH,
       targetPlayerId: null,
-      behaviour, // 'hunter' or 'wanderer'
+      behaviour,
       spawnTime: Date.now(),
       roarEndTime: Date.now() + CONFIG.MONSTER_ROAR_DURATION,
       immobileUntilTime: Date.now() + CONFIG.MONSTER_ROAR_IMMOBILE_TIME,
-      nextAttackTime: Date.now() + 2000,
+      nextAttackTime: Date.now() + CONFIG.MONSTER_ATTACK_COOLDOWN,
       lastSeenPlayerPosition: null,
       lastSightTime: 0,
       lastPathfindTime: 0,
       pathfindTarget: null,
       path: [],
       pathIndex: 0,
-      frozenBy: [], // Players looking at this monster
+      frozenBy: [],
     });
+
   }
 
   /**

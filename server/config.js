@@ -80,14 +80,18 @@ const CONFIG = {
     MONSTER_BLIND_SPOT_ANGLE: 0.2, // ~22 degrees
     MONSTER_SPAWN_DELAY: 30000,    // Wait 30s before first spawn (ms)
     MONSTER_SPAWN_RATE: 1,         // Spawn rate multiplier (1 per living player per minute)
+    // Monster roar timings for GameState.spawnMonster
+    MONSTER_ROAR_DURATION: 2000,      // 2s roar duration
+    MONSTER_ROAR_IMMOBILE_TIME: 2000, // immobile during entire roar
 
     // Vision
     VISION_DETECTION_RANGE: 30,    // How far monsters can see
     VISION_CONE_ANGLE: 0.6,        // Vision cone angle
     BLIND_SPOT_CONE_ANGLE: 0.2,    // Blind spot cone angle
+    GAZE_RAYCAST_CONE_ANGLE: 0.6,        // Vision raycast cone angle
 
     // Orbs
-    ORB_SPAWN_COUNT: 75,           // Initial orbs
+    ORB_COUNT_INITIAL: 75,           // Initial orbs
     ORB_RESPAWN_INTERVAL: 5000,    // Respawn collected orbs every 5s (ms)
     ORB_POINTS_PER_ORB: 1,         // Points for collecting
 
