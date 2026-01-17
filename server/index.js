@@ -210,36 +210,46 @@ io.on('connection', (socket) => {
 
   let lobbyId = null;
   let playerId = socket.id;
+  let actualPlayerId = playerId; // Track the actual persistent player ID
 
   /**
    * join_lobby - Player requests to join or create a lobby
    */
   socket.on('join_lobby', (data) => {
-    logger.info(`Join lobby request: ${playerId}`, data);
-
+    const previousPlayerId = data.previousPlayerId;
     const username = data.username || `Player${playerId.slice(-4)}`;
 
-    // Check if player is reconnecting
+    logger.info(`Join lobby request: ${playerId}`, { username, previousPlayerId });
+
+    // Check if player is reconnecting with a stored ID
     let isReconnect = false;
     let targetLobbyId = null;
 
-    // Check for existing disconnected session
-    if (disconnectedPlayers.has(playerId)) {
-      const disconnected = disconnectedPlayers.get(playerId);
+    if (previousPlayerId && disconnectedPlayers.has(previousPlayerId)) {
+      const disconnected = disconnectedPlayers.get(previousPlayerId);
       const timeSinceDisconnect = Date.now() - disconnected.disconnectTime;
 
       if (timeSinceDisconnect < CONFIG.RECONNECT_GRACE_PERIOD) {
         // Player is reconnecting within grace period
         isReconnect = true;
         targetLobbyId = disconnected.lobbyId;
+        actualPlayerId = previousPlayerId; // Use the stored player ID
+        playerId = previousPlayerId; // Update playerId for this session
+
         clearTimeout(disconnected.timeout);
-        disconnectedPlayers.delete(playerId);
+        disconnectedPlayers.delete(previousPlayerId);
+
         logger.info(`Player ${playerId} reconnecting to lobby ${targetLobbyId}`);
+        socket.emit('reconnected', {
+          playerId: actualPlayerId,
+          message: `Welcome back, ${username}!`
+        });
       }
     }
 
-    // If not reconnecting, find new lobby (by code or random available)
+    // If not reconnecting, create new player ID or find new lobby
     if (!isReconnect) {
+      actualPlayerId = socket.id; // New player gets socket ID
       targetLobbyId = data.lobbyCode ? data.lobbyCode : lobbyManager.findAvailableLobby();
 
       if (!targetLobbyId) {
@@ -256,17 +266,18 @@ io.on('connection', (socket) => {
 
     const success = isReconnect ?
       true : // Already in lobby, just reconnecting socket
-      lobbyManager.addPlayerToLobby(targetLobbyId, playerId, playerData);
+      lobbyManager.addPlayerToLobby(targetLobbyId, actualPlayerId, playerData);
 
     if (!success && !isReconnect) {
       socket.emit('error', { message: 'Failed to join lobby' });
-      logger.warn(`Join lobby failed for ${playerId}: could not add to lobby`);
+      logger.warn(`Join lobby failed for ${actualPlayerId}: could not add to lobby`);
       return;
     }
 
     // Setup socket rooms
     lobbyId = targetLobbyId;
-    playerToLobby.set(playerId, lobbyId);
+    playerId = actualPlayerId;
+    playerToLobby.set(actualPlayerId, lobbyId);
     socket.join(lobbyId);
 
     const gameState = lobbyManager.getLobby(lobbyId);
@@ -301,7 +312,7 @@ io.on('connection', (socket) => {
     socket.emit('join_lobby_response', {
       success: true,
       lobbyCode: lobbyId,
-      playerId,
+      playerId: actualPlayerId,
       isReconnect,
       gameState: {
         players: Array.from(gameState.players.values()).map(p => ({
@@ -473,7 +484,7 @@ io.on('connection', (socket) => {
    * Allows reconnection for a grace period
    */
   socket.on('disconnect', () => {
-    logger.info(`Player disconnected: ${playerId}`);
+    logger.info(`Player disconnected: ${playerId} from lobby ${lobbyId}`);
 
     if (lobbyId) {
       const gameState = lobbyManager.getLobby(lobbyId);
@@ -483,6 +494,14 @@ io.on('connection', (socket) => {
         if (player) {
           player.isConnected = false;
           player.disconnectTime = Date.now();
+
+          // Store disconnected player info for reconnection
+          disconnectedPlayers.set(playerId, {
+            lobbyId: lobbyId,
+            disconnectTime: Date.now(),
+            playerId: playerId,
+            username: player.username
+          });
 
           // Notify other players that this player disconnected
           io.to(lobbyId).emit('player_disconnected', { playerId });
@@ -495,6 +514,7 @@ io.on('connection', (socket) => {
               if (player && !player.isConnected) {
                 // Player still disconnected after grace period - remove them
                 lobbyManager.removePlayerFromLobby(playerId);
+                disconnectedPlayers.delete(playerId);
                 io.to(lobbyId).emit('player_left', { playerId });
                 logger.info(`Player permanently removed after reconnect timeout: ${playerId}`);
               }
@@ -503,6 +523,12 @@ io.on('connection', (socket) => {
 
           // Store the timer so we can clear it if they reconnect
           playerReconnectTimers.set(playerId, reconnectTimer);
+
+          // Also store in disconnectedPlayers map
+          const entry = disconnectedPlayers.get(playerId);
+          if (entry) {
+            entry.timeout = reconnectTimer;
+          }
         }
       }
       // Don't delete from playerToLobby yet - they might reconnect

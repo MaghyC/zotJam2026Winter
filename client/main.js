@@ -17,24 +17,152 @@ class GameClient {
 
     this.lastFrameTime = Date.now();
     this.animationFrameId = null;
+
+    // Player identity
+    this.playerId = null;
+    this.username = null;
   }
 
   /**
-   * Initialize the game
+   * Initialize the game - first try to restore session, then show login
    */
   async init() {
     console.log('%c=== Multi-Lobby Blink Royale ===', 'color: #00ff00; font-size: 16px; font-weight: bold;');
 
     try {
+      // Try to restore previous session
+      const savedSession = this.loadPlayerSession();
+
+      if (savedSession) {
+        console.log('[Main] Restoring previous session:', savedSession.username);
+        this.username = savedSession.username;
+        this.playerId = savedSession.playerId;
+        await this.startGame();
+      } else {
+        // Show login screen
+        this.showLoginScreen();
+      }
+    } catch (error) {
+      console.error('[Main] Init error:', error);
+      this.showLoginScreen();
+    }
+  }
+
+  /**
+   * Load player session from localStorage
+   */
+  loadPlayerSession() {
+    const stored = localStorage.getItem('playerSession');
+    if (!stored) return null;
+
+    try {
+      return JSON.parse(stored);
+    } catch {
+      localStorage.removeItem('playerSession');
+      return null;
+    }
+  }
+
+  /**
+   * Save player session to localStorage
+   */
+  savePlayerSession() {
+    const session = {
+      username: this.username,
+      playerId: this.playerId,
+      timestamp: Date.now()
+    };
+    localStorage.setItem('playerSession', JSON.stringify(session));
+  }
+
+  /**
+   * Show login screen
+   */
+  showLoginScreen() {
+    const loginScreen = document.getElementById('loginScreen');
+    const usernameInput = document.getElementById('usernameInput');
+    const loginBtn = document.getElementById('loginBtn');
+
+    loginScreen.classList.add('show');
+    loginScreen.style.display = 'flex';
+
+    // Check if we have a stored player ID - if so, suggest the last username
+    const savedUsername = localStorage.getItem('lastUsername');
+    if (savedUsername) {
+      usernameInput.value = savedUsername;
+      usernameInput.select();
+    } else {
+      usernameInput.focus();
+    }
+
+    // Handle login button click
+    loginBtn.onclick = () => {
+      const username = usernameInput.value.trim();
+      if (!username) {
+        alert('Please enter a username');
+        usernameInput.focus();
+        return;
+      }
+
+      if (username.length < 2) {
+        alert('Username must be at least 2 characters');
+        usernameInput.focus();
+        return;
+      }
+
+      loginBtn.disabled = true;
+      this.username = username;
+      localStorage.setItem('lastUsername', username);
+      this.startGame();
+    };
+
+    // Handle Enter key
+    usernameInput.onkeypress = (e) => {
+      if (e.key === 'Enter') {
+        loginBtn.click();
+      }
+    };
+  }
+
+  /**
+   * Hide login screen
+   */
+  hideLoginScreen() {
+    const loginScreen = document.getElementById('loginScreen');
+    loginScreen.classList.remove('show');
+    loginScreen.style.display = 'none';
+  }
+
+  /**
+   * Start the game after login
+   */
+  async startGame() {
+    console.log('[Main] Starting game for player:', this.username);
+
+    try {
+      this.hideLoginScreen();
+
       // Initialize UI
       this.ui = new UIManager();
-      this.ui.showMessage('Initializing game...', 'normal');
+      this.ui.showMessage('Connecting to server...', 'normal');
 
-      // Connect to server
+      // Connect to server with username and playerId if reconnecting
       this.network = new NetworkManager();
-      await this.network.connect('Player');
 
-      console.log('Connected to server, waiting for game to start...');
+      // Try to reconnect if we have a stored player ID
+      const storedPlayerId = localStorage.getItem('playerId');
+      if (storedPlayerId && !this.playerId) {
+        this.playerId = storedPlayerId;
+      }
+
+      await this.network.connect(this.username, this.playerId);
+
+      // Store the received player ID
+      this.playerId = this.network.playerId;
+      localStorage.setItem('playerId', this.playerId);
+      this.savePlayerSession();
+
+      console.log('[Main] Connected with ID:', this.playerId);
 
       // Setup network callbacks
       this.setupNetworkCallbacks();
@@ -58,14 +186,19 @@ class GameClient {
 
       // Hide loading screen
       this.ui.hideLoading();
-      this.ui.showMessage('Game started! Use WASD to move, mouse to look', 'normal');
+      this.ui.showMessage(`Welcome ${this.username}! Use WASD to move, mouse to look`, 'normal');
 
       // Start render loop
       this.startRenderLoop();
 
     } catch (error) {
-      console.error('[Main] Init error:', error);
+      console.error('[Main] Start game error:', error);
       this.ui.showMessage(`Error: ${error.message}`, 'error');
+
+      // Show login screen again on error
+      setTimeout(() => {
+        this.showLoginScreen();
+      }, 2000);
     }
   }
 

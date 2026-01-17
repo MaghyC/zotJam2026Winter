@@ -38,8 +38,10 @@ class NetworkManager {
 
   /**
    * Connect to server via Socket.IO
+   * @param {string} username - Player username
+   * @param {string} previousPlayerId - Optional: player ID from previous session for reconnection
    */
-  connect(username = 'Player') {
+  connect(username = 'Player', previousPlayerId = null) {
     return new Promise((resolve, reject) => {
       try {
         console.log('[Network] Connecting to server:', this.serverUrl);
@@ -52,15 +54,28 @@ class NetworkManager {
           reconnectionAttempts: 5,
         });
 
+        // Store previous ID for reconnection attempt
+        if (previousPlayerId) {
+          this.previousPlayerId = previousPlayerId;
+        }
+
         // Connection events
         this.socket.on('connect', () => {
           console.log('[Network] Connected to server (socket:', this.socket.id, ')');
           this.isConnected = true;
 
           // Request to join lobby
-          this.socket.emit('join_lobby', {
+          const joinData = {
             username: username,
-          });
+          };
+
+          // If reconnecting, send the previous player ID
+          if (this.previousPlayerId) {
+            joinData.previousPlayerId = this.previousPlayerId;
+            console.log('[Network] Attempting to reconnect as player:', this.previousPlayerId);
+          }
+
+          this.socket.emit('join_lobby', joinData);
         });
 
         this.socket.on('disconnect', () => {
@@ -69,12 +84,10 @@ class NetworkManager {
           this.isReady = false;
           this._fireCallback('disconnected');
 
-          // If we had a playerId, attempt to reconnect
+          // If we had a playerId, store it for reconnection
           if (this.playerId) {
             this.previousPlayerId = this.playerId;
-            this.playerId = null; // Clear current ID to allow reconnection
-            console.log('[Network] Attempting automatic reconnection for player:', this.previousPlayerId);
-            this._attemptReconnection();
+            console.log('[Network] Stored player ID for potential reconnection:', this.previousPlayerId);
           }
         });
 

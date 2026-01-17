@@ -5,6 +5,7 @@
  */
 
 const CONFIG = {
+
   // ==================== SERVER ====================
   PORT: process.env.PORT || 3000,
   HOST: '0.0.0.0', // Listen on all interfaces for LAN/WAN play

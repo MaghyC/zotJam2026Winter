@@ -157,10 +157,23 @@ class GameState {
    * Update player position and rotation (called frequently from input)
    */
   updatePlayerTransform(playerId, position, rotation, gaze) {
+
     const player = this.players.get(playerId);
+    if (!player) return;
+
     if (player && player.state === PLAYER_STATES.ALIVE) {
       player.position = { ...position };
       player.rotation = { ...rotation };
+      // ensure gaze is legal
+      if (!gaze || typeof gaze.x !== 'number') {
+        // use cureent player if no gaze，or a default forward vector
+        gaze = player.gaze || { x: 0, y: 0, z: 1 };
+      }
+
+      // ensure rotation is legal
+      if (!rotation) {
+        rotation = player.rotation || { x: 0, y: 0, z: 0 };
+      }
 
       // Normalize gaze vector
       const len = Math.sqrt(gaze.x * gaze.x + gaze.y * gaze.y + gaze.z * gaze.z);
