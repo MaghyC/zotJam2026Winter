@@ -7,8 +7,6 @@
  * Production-ready: proper reconnection, event handling, and logging.
  */
 
-const { NETWORK_MESSAGES, GAME_CONSTANTS } = window.GAME_TYPES || {};
-
 class NetworkManager {
   constructor(serverUrl = null) {
     // Auto-detect server URL
@@ -25,6 +23,7 @@ class NetworkManager {
     this.lobbyCode = null;
     this.isConnected = false;
     this.isReady = false;
+    this.previousPlayerId = null; // Track player ID for reconnection
 
     // Rate limiting
     this.lastMessageTime = {};
@@ -69,6 +68,14 @@ class NetworkManager {
           this.isConnected = false;
           this.isReady = false;
           this._fireCallback('disconnected');
+
+          // If we had a playerId, attempt to reconnect
+          if (this.playerId) {
+            this.previousPlayerId = this.playerId;
+            this.playerId = null; // Clear current ID to allow reconnection
+            console.log('[Network] Attempting automatic reconnection for player:', this.previousPlayerId);
+            this._attemptReconnection();
+          }
         });
 
         this.socket.on('error', (error) => {
@@ -149,7 +156,30 @@ class NetworkManager {
           this._fireCallback('timer_broadcast', data);
         });
 
-        // Error messages
+        // Reconnection events
+        this.socket.on('reconnect_success', (data) => {
+          console.log('[Network] Successfully reconnected to lobby:', data.lobbyId);
+          this.playerId = data.playerData.id || this.previousPlayerId;
+          this.lobbyCode = data.lobbyId;
+          this.isReady = true;
+          this._fireCallback('reconnect_success', data);
+        });
+
+        this.socket.on('reconnect_failed', (data) => {
+          console.warn('[Network] Reconnection failed:', data.reason);
+          this.previousPlayerId = null;
+          this._fireCallback('reconnect_failed', data);
+        });
+
+        this.socket.on('player_disconnected', (data) => {
+          console.log('[Network] Player disconnected:', data.playerId);
+          this._fireCallback('player_disconnected', data);
+        });
+
+        this.socket.on('player_reconnected', (data) => {
+          console.log('[Network] Player reconnected:', data.playerId);
+          this._fireCallback('player_reconnected', data);
+        });        // Error messages
         this.socket.on('error', (data) => {
           console.error('[Network] Server error:', data.message);
           this._fireCallback('server_error', data);
@@ -293,7 +323,26 @@ class NetworkManager {
       this.isReady = false;
     }
   }
-}
 
-// Export for global use
+  /**
+   * Attempt to reconnect with previous player ID
+   * Called when socket reconnects after temporary disconnect
+   */
+  _attemptReconnection() {
+    if (!this.socket || !this.previousPlayerId) {
+      console.warn('[Network] Cannot attempt reconnection - missing socket or previousPlayerId');
+      return;
+    }
+
+    // Check if socket has reconnected
+    if (this.socket.connected) {
+      console.log('[Network] Sending reconnection request for player:', this.previousPlayerId);
+      this.socket.emit('reconnect', { playerId: this.previousPlayerId });
+    } else {
+      // Socket still disconnected, retry after delay
+      setTimeout(() => this._attemptReconnection(), 1000);
+    }
+  }
+
+}
 window.NetworkManager = NetworkManager;

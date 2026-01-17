@@ -1,107 +1,115 @@
 /**
  * server/config.js
- * Centralized server configuration for game balance, arena, and networking.
- * Production-ready game development best practices: single source of truth for all tunable parameters.
+ * 
+ * Centralized configuration and logging system for the game server.
+ * All magic numbers and tunable parameters are defined here.
  */
 
-const CONFIG = {
-  // ==================== SERVER ====================
-  PORT: process.env.PORT || 3000,
-  HOST: '0.0.0.0', // Listen on all interfaces for LAN/WAN play
-  MAX_LOBBIES: 10,
-  PLAYERS_PER_LOBBY: 8,
+// ==================== LOGGER ====================
 
-  // ==================== ARENA ====================
-  ARENA_RADIUS: 100,
-  ARENA_HEIGHT: 150,
-  ARENA_SHRINK_START_TIME: 120000, // 2 minutes before shrink begins
-  ARENA_SHRINK_DURATION: 60000, // Takes 1 minute to fully shrink
-  ARENA_FINAL_RADIUS: 10,
-  OBSTACLE_COUNT: 15,
-  ORB_COUNT_INITIAL: 75,
-  ORB_SPAWN_INTERVAL: 5000, // New orbs spawn every 5s to maintain count
-
-  // ==================== PLAYER MECHANICS ====================
-  PLAYER_SPEED: 25, // units/second forward
-  PLAYER_BACKWARD_SPEED_MULTIPLIER: 0.5, // Backward is 50% speed
-  PLAYER_HEIGHT: 1.8,
-  PLAYER_MAX_HEALTH: 100,
-  PLAYER_REGEN_AMOUNT: 1, // Health per regen tick
-  PLAYER_REGEN_INTERVAL: 5000, // Regen every 5 seconds
-  PLAYER_BLINK_MAX_TIME: 20000, // Forced blink after 20s of staring
-  PLAYER_BLINK_VOLUNTARY_REFRESH: 10000, // Voluntary blink adds 10s
-  PLAYER_BLINK_BLACKOUT: 500, // Screen blackout duration (ms)
-
-  // ==================== MONSTER MECHANICS ====================
-  MONSTER_SPAWN_DELAY: 30000, // First monster spawns after 30s
-  MONSTER_SPAWN_RATE: 1, // 1 per living player per minute
-  MONSTER_ROAR_DURATION: 10000, // Visible on minimap for 10s
-  MONSTER_ROAR_IMMOBILE_TIME: 3000, // Can't move for first 3s after roar
-  MONSTER_ATTACK_DAMAGE_PERCENT: 0.6, // 60% of max health
-  MONSTER_DETECTION_RANGE: 30, // Sees player within 30m
-  MONSTER_HUNT_RANGE: 50, // Stops hunting if player > 50m away
-  MONSTER_SPEED: 20, // units/second pathfinding speed
-  MONSTER_PATHFIND_UPDATE_INTERVAL: 1000, // Recalculate path every 1s
-  MONSTER_DETECTION_CONE_ANGLE: Math.PI / 2, // 90 degree detection cone
-
-  // ==================== VISION & GAZE ====================
-  GAZE_RAYCAST_DISTANCE: 1000,
-  GAZE_RAYCAST_CONE_ANGLE: Math.PI / 3, // 60 degree gaze cone
-  MINIMAP_VISIBLE_RANGE: 50,
-
-  // ==================== ORBS ====================
-  ORB_COLLECTION_RANGE: 5, // meters to collect
-  ORB_RESPAWN_TIMER: 3000, // Collected orbs become available again after 3s
-
-  // ==================== PAIRING/ATTACHMENT ====================
-  PAIR_REQUEST_TIMEOUT: 10000, // Pair request expires after 10s
-  PAIR_BROADCAST_RANGE: 30, // Distance for pair broadcasts
-  PAIR_SWAP_CONTROL_REQUEST_TIMEOUT: 10000,
-
-  // ==================== UPDATE RATES ====================
-  GAME_LOOP_RATE: 60, // Hz (server game loop)
-  NETWORK_UPDATE_RATE: 30, // Hz (network broadcasts)
-  MONSTER_AI_UPDATE_RATE: 10, // Hz (monster pathfinding)
-  PLAYER_REGEN_RATE: 0.2, // Hz (health regen)
-
-  // ==================== LOGGING & DEBUG ====================
-  DEBUG_MODE: process.env.DEBUG === 'true',
-  LOG_LEVEL: process.env.LOG_LEVEL || 'info', // 'debug', 'info', 'warn', 'error'
-};
-
-/**
- * Logger utility with levels
- */
 class Logger {
-  log(level, message, data = null) {
-    if (CONFIG.DEBUG_MODE || level !== 'debug') {
-      const timestamp = new Date().toISOString();
-      const prefix = `[${timestamp}] [${level.toUpperCase()}]`;
-      if (data) {
-        console.log(`${prefix} ${message}`, data);
-      } else {
-        console.log(`${prefix} ${message}`);
-      }
+    constructor(name = 'Game') {
+        this.name = name;
     }
-  }
 
-  debug(message, data) {
-    this.log('debug', message, data);
-  }
+    _format(level, message, data = null) {
+        const timestamp = new Date().toISOString();
+        const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+        return `[${timestamp}] [${level}] ${message}${dataStr}`;
+    }
 
-  info(message, data) {
-    this.log('info', message, data);
-  }
+    debug(message, data) {
+        if (process.env.DEBUG === 'true') {
+            console.log(this._format('DEBUG', message, data));
+        }
+    }
 
-  warn(message, data) {
-    this.log('warn', message, data);
-  }
+    info(message, data) {
+        console.log(this._format('INFO', message, data));
+    }
 
-  error(message, data) {
-    this.log('error', message, data);
-  }
+    warn(message, data) {
+        console.warn(this._format('WARN', message, data));
+    }
+
+    error(message, data) {
+        console.error(this._format('ERROR', message, data));
+    }
 }
 
-const logger = new Logger();
+// ==================== CONFIGURATION ====================
 
-module.exports = { CONFIG, logger };
+const CONFIG = {
+    // Server
+    HOST: '0.0.0.0',
+    PORT: 3000,
+
+    // Game Loop
+    GAME_LOOP_RATE: 60,           // Server ticks per second
+    NETWORK_UPDATE_RATE: 30,       // Network broadcasts per second
+
+    // Arena
+    ARENA_RADIUS: 100,             // Starting arena radius
+    ARENA_HEIGHT: 150,             // Wall height
+    ARENA_SHRINK_START_TIME: 120000, // Start shrinking at 2 minutes (ms)
+    ARENA_SHRINK_DURATION: 60000,  // Shrink over 1 minute (ms)
+    ARENA_FINAL_RADIUS: 10,        // Final shrunk radius
+
+    // Player
+    PLAYERS_PER_LOBBY: 8,          // Max players in one lobby
+    MAX_LOBBIES: 10,               // Max concurrent lobbies
+    PLAYER_MAX_HEALTH: 100,        // Max health
+    PLAYER_REGEN_AMOUNT: 1,        // HP per regen tick
+    PLAYER_REGEN_INTERVAL: 5000,   // Regen every 5 seconds (ms)
+    PLAYER_SPEED: 25,              // Units per second forward
+    PLAYER_BACKWARD_SPEED_MULTIPLIER: 0.5, // 50% speed backward
+    PLAYER_HEIGHT: 1.8,            // Player height
+
+    // Blink Mechanic
+    PLAYER_BLINK_MAX_TIME: 20000,  // 20 seconds forced blink (ms)
+    PLAYER_BLINK_ADD_VOLUNTARY: 10000, // +10s for voluntary blink (ms)
+    PLAYER_BLINK_BLACKOUT_DURATION: 500, // 0.5s can't see (ms)
+
+    // Monster
+    MONSTER_MAX_HEALTH: 50,        // Monster health
+    MONSTER_SPEED: 20,             // Units per second
+    MONSTER_ATTACK_COOLDOWN: 2000, // 2s between attacks (ms)
+    MONSTER_ATTACK_DAMAGE_PERCENT: 0.6, // 60% of player max health
+    MONSTER_DETECTION_RANGE: 30,   // Detection range (units)
+    MONSTER_DETECTION_CONE_ANGLE: 0.6, // ~70 degrees
+    MONSTER_BLIND_SPOT_ANGLE: 0.2, // ~22 degrees
+    MONSTER_SPAWN_DELAY: 30000,    // Wait 30s before first spawn (ms)
+    MONSTER_SPAWN_RATE: 1,         // Spawn rate multiplier (1 per living player per minute)
+
+    // Vision
+    VISION_DETECTION_RANGE: 30,    // How far monsters can see
+    VISION_CONE_ANGLE: 0.6,        // Vision cone angle
+    BLIND_SPOT_CONE_ANGLE: 0.2,    // Blind spot cone angle
+
+    // Orbs
+    ORB_SPAWN_COUNT: 75,           // Initial orbs
+    ORB_RESPAWN_INTERVAL: 5000,    // Respawn collected orbs every 5s (ms)
+    ORB_POINTS_PER_ORB: 1,         // Points for collecting
+
+    // Pairing/Attachment
+    PAIR_REQUEST_TIMEOUT: 30000,   // Request expires after 30s (ms)
+    PAIR_BROADCAST_RANGE: 50,      // Broadcast range for nearby players
+
+    // Game Duration
+    GAME_DURATION: 180000,         // 3 minute matches (ms)
+    GAME_AUTO_START_DELAY: 5000,   // Auto-start after 5s with 2+ players (ms)
+    GAME_AUTO_START_MIN_PLAYERS: 2, // Minimum players to auto-start
+
+    // Reconnection
+    RECONNECT_TIMEOUT: 30000,      // Keep player state for 30s after disconnect (ms)
+    RECONNECT_GRACE_PERIOD: 60000, // Allow reconnection within 60s (ms)
+};
+
+// ==================== EXPORTS ====================
+
+const logger = new Logger('MultiLobbyBlinkRoyale');
+
+module.exports = {
+    CONFIG,
+    logger,
+};
