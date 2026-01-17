@@ -11,161 +11,254 @@
  * - Clients receive updates from this state
  */
 
-import {
-  PLAYER_STATES,
-  MONSTER_STATES,
-  ATTACHMENT_STATES,
-  ORB_SCORE_VALUE,
-  ARENA_INITIAL_RADIUS,
-} from '../shared/constants.js';
-import { getServerTime, debugLog } from './config.js';
+const { CONFIG, logger } = require('./config.js');
+
+// Game state constants
+const PLAYER_STATES = {
+  ALIVE: 'alive',
+  DEAD: 'dead',
+  SPECTATING: 'spectating',
+};
+
+const MONSTER_STATES = {
+  ROARING: 'roaring',
+  HUNTING: 'hunting',
+  IDLE: 'idle',
+  ATTACKING: 'attacking',
+  DEAD: 'dead',
+};
+
+const ATTACHMENT_STATES = {
+  ALONE: 'alone',
+  REQUEST_SENT: 'request_sent',
+  REQUEST_RECEIVED: 'request_received',
+  ATTACHED: 'attached',
+};
+
+const ORB_SCORE_VALUE = 1;
 
 /**
  * GameState - manages state for a single lobby/match
  */
-export class GameState {
+class GameState {
   constructor(lobbyId) {
     this.lobbyId = lobbyId;
     this.players = new Map(); // playerId -> Player
     this.monsters = new Map(); // monsterId -> Monster
     this.orbs = new Map(); // orbId -> Orb
-    
+
     // Game phase timing
     this.matchStartTime = null; // will be set when match starts
     this.active = false;
-    
+
     // Arena state
-    this.arenaSafeRadius = ARENA_INITIAL_RADIUS;
+    this.arenaSafeRadius = CONFIG.ARENA_RADIUS;
     this.centerX = 0; // arena center position
     this.centerZ = 0;
-    
+
     // Monster spawn tracking
     this.lastMonsterSpawnTime = 0;
     this.monstersSpawnedThisPhase = 0;
+
+    // Last network state snapshot (for delta updates)
+    this.lastNetworkUpdate = Date.now();
   }
-  
+
   /**
-   * Get elapsed time since match start (in seconds)
+   * Get elapsed time since match start (in milliseconds)
    */
   getMatchElapsedTime() {
     if (!this.matchStartTime) return 0;
-    return (getServerTime() - this.matchStartTime) / 1000;
+    return Date.now() - this.matchStartTime;
   }
-  
+
+  /**
+   * Start the match
+   */
+  startMatch() {
+    this.matchStartTime = Date.now();
+    this.active = true;
+    logger.info(`Lobby ${this.lobbyId}: Match started`);
+  }
+
   /**
    * Add a player to this lobby
    */
   addPlayer(playerId, playerData) {
-    debugLog(`Adding player ${playerId} to lobby ${this.lobbyId}`);
+    logger.debug(`Adding player ${playerId} to lobby ${this.lobbyId}`);
+
+    // Random spawn position within safe zone
+    const angle = Math.random() * Math.PI * 2;
+    const distance = Math.random() * 30;
+    const spawnX = this.centerX + Math.cos(angle) * distance;
+    const spawnZ = this.centerZ + Math.sin(angle) * distance;
+
     this.players.set(playerId, {
       id: playerId,
-      ...playerData,
+      username: playerData.username || `Player_${playerId.slice(0, 4)}`,
       state: PLAYER_STATES.ALIVE,
-      health: 100,
-      maxHealth: 100,
+      health: CONFIG.PLAYER_MAX_HEALTH,
+      maxHealth: CONFIG.PLAYER_MAX_HEALTH,
       score: 0,
+      orbsCollected: 0,
       blinkCooldownEnd: 0,
+      lastBlinkTime: 0,
       attachedTo: null,
       attachmentState: ATTACHMENT_STATES.ALONE,
       lastAttackTime: 0,
-      position: { x: Math.random() * 40 - 20, y: 1, z: Math.random() * 40 - 20 },
-      rotation: { x: 0, y: 0, z: 0 },
-      gaze: { x: 0, y: 0, z: 1 }, // default looking forward
+      lastRegenTime: Date.now(),
+
+      // Spatial state
+      position: { x: spawnX, y: CONFIG.PLAYER_HEIGHT, z: spawnZ },
+      rotation: { x: 0, y: Math.random() * Math.PI * 2, z: 0 },
+      gaze: { x: 0, y: 0, z: 1 }, // normalized direction vector (forward)
+      velocity: { x: 0, y: 0, z: 0 },
+
+      // Pairing state
+      pairRequestPendingTo: null,
+      pairRequestFrom: [],
+
+      // For spectating when dead
+      spectatingPlayerId: null,
     });
   }
-  
+
   /**
    * Remove a player from this lobby
    */
   removePlayer(playerId) {
-    debugLog(`Removing player ${playerId} from lobby ${this.lobbyId}`);
-    
+    logger.debug(`Removing player ${playerId} from lobby ${this.lobbyId}`);
+
     // If player is attached, detach them
     const player = this.players.get(playerId);
     if (player && player.attachedTo) {
-      const attachedPlayer = this.players.get(player.attachedTo);
-      if (attachedPlayer) {
-        attachedPlayer.attachedTo = null;
-        attachedPlayer.attachmentState = ATTACHMENT_STATES.ALONE;
-      }
+      this.detachPlayers(playerId);
     }
-    
+
+    // Remove any pending pair requests
+    for (const [, p] of this.players) {
+      if (p.pairRequestPendingTo === playerId) {
+        p.pairRequestPendingTo = null;
+      }
+      p.pairRequestFrom = p.pairRequestFrom.filter(id => id !== playerId);
+    }
+
     this.players.delete(playerId);
   }
-  
+
   /**
    * Get a player by ID
    */
   getPlayer(playerId) {
     return this.players.get(playerId);
   }
-  
+
   /**
    * Update player position and rotation (called frequently from input)
    */
   updatePlayerTransform(playerId, position, rotation, gaze) {
     const player = this.players.get(playerId);
-    if (player) {
-      player.position = position;
-      player.rotation = rotation;
-      player.gaze = gaze; // normalized direction vector
+    if (player && player.state === PLAYER_STATES.ALIVE) {
+      player.position = { ...position };
+      player.rotation = { ...rotation };
+
+      // Normalize gaze vector
+      const len = Math.sqrt(gaze.x * gaze.x + gaze.y * gaze.y + gaze.z * gaze.z);
+      if (len > 0) {
+        player.gaze = {
+          x: gaze.x / len,
+          y: gaze.y / len,
+          z: gaze.z / len,
+        };
+      }
     }
   }
-  
+
   /**
    * Check if player can blink (cooldown expired)
    */
   canBlink(playerId) {
     const player = this.players.get(playerId);
-    if (!player) return false;
-    return getServerTime() >= player.blinkCooldownEnd;
+    if (!player || player.state !== PLAYER_STATES.ALIVE) return false;
+    return Date.now() >= player.blinkCooldownEnd;
   }
-  
+
   /**
    * Execute a blink action for player (resets cooldown)
    */
-  executeBlink(playerId, cooldownSeconds) {
+  executeBlink(playerId, refreshSeconds) {
     const player = this.players.get(playerId);
     if (player) {
-      player.blinkCooldownEnd = getServerTime() + (cooldownSeconds * 1000);
-      debugLog(`Player ${playerId} blinked, cooldown ends at ${player.blinkCooldownEnd}`);
+      player.blinkCooldownEnd = Date.now() + (refreshSeconds * 1000);
+      player.lastBlinkTime = Date.now();
+      logger.debug(`Player ${playerId} blinked, cooldown: ${refreshSeconds}s`);
+      return true;
     }
+    return false;
   }
-  
+
   /**
-   * Get time remaining on blink cooldown (in seconds)
+   * Get time remaining on blink cooldown (in seconds, 0.1s precision)
    */
   getBlinkCooldownRemaining(playerId) {
     const player = this.players.get(playerId);
     if (!player) return 0;
-    const remaining = (player.blinkCooldownEnd - getServerTime()) / 1000;
-    return Math.max(0, remaining);
+    const remaining = (player.blinkCooldownEnd - Date.now()) / 1000;
+    const clamped = Math.max(0, Math.min(CONFIG.PLAYER_BLINK_MAX_TIME / 1000, remaining));
+    return Math.round(clamped * 10) / 10; // 0.1s precision
   }
-  
+
   /**
-   * Spawn an orb at a random location
+   * Spawn an orb at a specific location
    */
   spawnOrb(orbId, position) {
     this.orbs.set(orbId, {
       id: orbId,
-      position: position,
+      position: { ...position },
       value: ORB_SCORE_VALUE,
       collected: false,
+      collectedBy: null,
+      collectedTime: 0,
     });
   }
-  
+
+  /**
+   * Spawn random orbs in the safe zone
+   */
+  spawnRandomOrbs(count) {
+    for (let i = 0; i < count; i++) {
+      const orbId = `orb_${Date.now()}_${i}`;
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * this.arenaSafeRadius;
+      const x = this.centerX + Math.cos(angle) * distance;
+      const z = this.centerZ + Math.sin(angle) * distance;
+
+      this.spawnOrb(orbId, { x, y: 1, z });
+    }
+  }
+
   /**
    * Mark an orb as collected
    */
-  collectOrb(orbId) {
+  collectOrb(orbId, playerId) {
     const orb = this.orbs.get(orbId);
     if (orb && !orb.collected) {
       orb.collected = true;
+      orb.collectedBy = playerId;
+      orb.collectedTime = Date.now();
+
+      const player = this.players.get(playerId);
+      if (player) {
+        player.orbsCollected += 1;
+        player.score += orb.value;
+      }
+
+      logger.debug(`Player ${playerId} collected orb ${orbId}`);
       return orb.value;
     }
     return 0;
   }
-  
+
   /**
    * Add score to a player
    */
@@ -175,156 +268,204 @@ export class GameState {
       player.score += points;
     }
   }
-  
+
   /**
    * Damage a player from monster attack
    */
-  damagePlayer(playerId, damageAmount) {
+  damagePlayer(playerId, damagePercent) {
     const player = this.players.get(playerId);
-    if (player) {
-      player.health = Math.max(0, player.health - damageAmount);
-      player.lastAttackTime = getServerTime();
+    if (player && player.health > 0) {
+      const damage = player.maxHealth * damagePercent;
+      player.health = Math.max(0, player.health - damage);
+      player.lastAttackTime = Date.now();
+
       if (player.health <= 0) {
         player.state = PLAYER_STATES.DEAD;
+        logger.info(`Player ${playerId} died in lobby ${this.lobbyId}`);
       }
+
+      return player.health;
     }
+    return 0;
   }
-  
+
   /**
-   * Heal a player over time (called every tick)
+   * Heal a player over time (called every regen interval)
    */
   regenPlayer(playerId, regenAmount) {
     const player = this.players.get(playerId);
-    if (player && player.health > 0) {
+    if (player && player.health > 0 && player.state === PLAYER_STATES.ALIVE) {
       player.health = Math.min(player.maxHealth, player.health + regenAmount);
+      player.lastRegenTime = Date.now();
+      return true;
     }
+    return false;
   }
-  
+
   /**
-   * Add a monster to the game state
+   * Spawn a monster at a location
    */
-  spawnMonster(monsterId, monsterData) {
-    debugLog(`Monster ${monsterId} spawned in lobby ${this.lobbyId}`);
+  spawnMonster(monsterId, position, behaviour) {
+    logger.debug(`Monster ${monsterId} spawned in lobby ${this.lobbyId}`);
+
     this.monsters.set(monsterId, {
       id: monsterId,
-      ...monsterData,
+      position: { ...position },
+      velocity: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
       state: MONSTER_STATES.ROARING,
       health: 50,
       maxHealth: 50,
       targetPlayerId: null,
-      spawnTime: getServerTime(),
-      nextAttackTime: 0,
+      behaviour, // 'hunter' or 'wanderer'
+      spawnTime: Date.now(),
+      roarEndTime: Date.now() + CONFIG.MONSTER_ROAR_DURATION,
+      immobileUntilTime: Date.now() + CONFIG.MONSTER_ROAR_IMMOBILE_TIME,
+      nextAttackTime: Date.now() + 2000,
       lastSeenPlayerPosition: null,
       lastSightTime: 0,
+      lastPathfindTime: 0,
+      pathfindTarget: null,
+      path: [],
+      pathIndex: 0,
+      frozenBy: [], // Players looking at this monster
     });
   }
-  
+
   /**
    * Get a monster by ID
    */
   getMonster(monsterId) {
     return this.monsters.get(monsterId);
   }
-  
+
   /**
    * Remove a monster (when killed)
    */
   removeMonster(monsterId) {
+    logger.debug(`Monster ${monsterId} removed from lobby ${this.lobbyId}`);
     this.monsters.delete(monsterId);
   }
-  
+
+  /**
+   * Mark monster as frozen by players looking at it
+   */
+  setMonsterFrozen(monsterId, frozenByPlayerIds) {
+    const monster = this.monsters.get(monsterId);
+    if (monster) {
+      monster.frozenBy = frozenByPlayerIds;
+      // Can't move if frozen
+      if (frozenByPlayerIds.length > 0) {
+        monster.velocity = { x: 0, y: 0, z: 0 };
+      }
+    }
+  }
+
   /**
    * Get all living players in this lobby
    */
   getLivingPlayers() {
     return Array.from(this.players.values()).filter(p => p.state === PLAYER_STATES.ALIVE);
   }
-  
+
   /**
    * Get all players in this lobby
    */
   getAllPlayers() {
     return Array.from(this.players.values());
   }
-  
+
   /**
    * Get all monsters in this lobby
    */
   getAllMonsters() {
     return Array.from(this.monsters.values());
   }
-  
+
   /**
    * Get all uncollected orbs
    */
   getActiveOrbs() {
     return Array.from(this.orbs.values()).filter(o => !o.collected);
   }
-  
+
   /**
-   * Request attachment between two players
-   * Returns true if successful, false if unable to attach
+   * Calculate distance between two points
+   */
+  distance(p1, p2) {
+    const dx = p2.x - p1.x;
+    const dz = p2.z - p1.z;
+    return Math.sqrt(dx * dx + dz * dz);
+  }
+
+  /**
+   * Request attachment between two players (initiator points at target + presses V)
    */
   requestAttachment(fromPlayerId, toPlayerId) {
     const fromPlayer = this.players.get(fromPlayerId);
     const toPlayer = this.players.get(toPlayerId);
-    
+
     if (!fromPlayer || !toPlayer) return false;
     if (fromPlayer.attachmentState !== ATTACHMENT_STATES.ALONE) return false;
     if (toPlayer.attachmentState !== ATTACHMENT_STATES.ALONE) return false;
-    
-    // Mark that request was sent/received
-    fromPlayer.attachmentState = ATTACHMENT_STATES.REQUEST_SENT;
-    toPlayer.attachmentState = ATTACHMENT_STATES.REQUEST_RECEIVED;
-    
+
+    // Send request to target
+    toPlayer.pairRequestFrom.push(fromPlayerId);
+    fromPlayer.pairRequestPendingTo = toPlayerId;
+
+    logger.debug(`Attachment request: ${fromPlayerId} -> ${toPlayerId}`);
     return true;
   }
-  
+
   /**
-   * Accept attachment between two players
+   * Accept attachment (target presses V)
    */
   acceptAttachment(respondingPlayerId, requestingPlayerId) {
     const responding = this.players.get(respondingPlayerId);
     const requesting = this.players.get(requestingPlayerId);
-    
+
     if (!responding || !requesting) return false;
-    
+
+    // Remove from pending requests
+    responding.pairRequestFrom = responding.pairRequestFrom.filter(id => id !== requestingPlayerId);
+    requesting.pairRequestPendingTo = null;
+
     // Both now attached back-to-back
     responding.attachedTo = requestingPlayerId;
     requesting.attachedTo = respondingPlayerId;
     responding.attachmentState = ATTACHMENT_STATES.ATTACHED;
     requesting.attachmentState = ATTACHMENT_STATES.ATTACHED;
-    
-    debugLog(`Players ${respondingPlayerId} and ${requestingPlayerId} are now attached`);
+
+    logger.info(`Players ${respondingPlayerId} and ${requestingPlayerId} are attached`);
     return true;
   }
-  
+
   /**
-   * Decline or cancel an attachment request
+   * Decline an attachment request (target presses X)
    */
-  declineAttachment(playerId, otherPlayerId) {
-    const player = this.players.get(playerId);
-    const other = this.players.get(otherPlayerId);
-    
-    if (player) {
-      player.attachmentState = ATTACHMENT_STATES.ALONE;
+  declineAttachment(respondingPlayerId, requestingPlayerId) {
+    const responding = this.players.get(respondingPlayerId);
+    const requesting = this.players.get(requestingPlayerId);
+
+    if (responding) {
+      responding.pairRequestFrom = responding.pairRequestFrom.filter(id => id !== requestingPlayerId);
     }
-    if (other) {
-      other.attachmentState = ATTACHMENT_STATES.ALONE;
+    if (requesting) {
+      requesting.pairRequestPendingTo = null;
     }
   }
-  
+
   /**
    * Detach two players
    */
   detachPlayers(playerId) {
     const player = this.players.get(playerId);
     if (!player) return;
-    
+
     const otherPlayerId = player.attachedTo;
     player.attachedTo = null;
     player.attachmentState = ATTACHMENT_STATES.ALONE;
-    
+
     if (otherPlayerId) {
       const other = this.players.get(otherPlayerId);
       if (other) {
@@ -332,23 +473,59 @@ export class GameState {
         other.attachmentState = ATTACHMENT_STATES.ALONE;
       }
     }
-    
-    debugLog(`Players ${playerId} and ${otherPlayerId} have detached`);
+
+    logger.debug(`Players ${playerId} and ${otherPlayerId} detached`);
   }
-  
+
   /**
    * Get nearby players within a radius for broadcasts
    */
   getNearbyPlayers(fromPlayerId, radius) {
     const fromPlayer = this.players.get(fromPlayerId);
     if (!fromPlayer) return [];
-    
+
     return Array.from(this.players.values()).filter(p => {
-      if (p.id === fromPlayerId) return false; // Don't include self
-      const dx = p.position.x - fromPlayer.position.x;
-      const dz = p.position.z - fromPlayer.position.z;
-      const distance = Math.sqrt(dx * dx + dz * dz);
+      if (p.id === fromPlayerId) return false;
+      const distance = this.distance(fromPlayer.position, p.position);
       return distance <= radius;
     });
   }
+
+  /**
+   * Get players that can see this player (cone of gaze)
+   */
+  getPlayersWhoCanSee(targetPlayerId, maxDistance = 100) {
+    const target = this.players.get(targetPlayerId);
+    if (!target) return [];
+
+    const viewers = [];
+
+    for (const [id, player] of this.players) {
+      if (id === targetPlayerId) continue;
+
+      const dist = this.distance(player.position, target.position);
+      if (dist > maxDistance) continue;
+
+      // Check if target is in player's gaze cone
+      const dx = target.position.x - player.position.x;
+      const dz = target.position.z - player.position.z;
+      const dirLen = Math.sqrt(dx * dx + dz * dz);
+
+      if (dirLen === 0) continue;
+
+      const dx_norm = dx / dirLen;
+      const dz_norm = dz / dirLen;
+
+      const dotProduct = player.gaze.x * dx_norm + player.gaze.z * dz_norm;
+      const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
+
+      if (angle <= CONFIG.GAZE_RAYCAST_CONE_ANGLE) {
+        viewers.push(player);
+      }
+    }
+
+    return viewers;
+  }
 }
+
+module.exports = { GameState, PLAYER_STATES, MONSTER_STATES, ATTACHMENT_STATES };

@@ -1,9 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="Multi-Lobby Blink Royale: A multiplayer 3D battle royale with shrinking arenas, monsters, and team mechanics.">
   <title>Multi-Lobby Blink Royale</title>
+
+  <!-- Styles -->
   <style>
     * {
       margin: 0;
@@ -11,148 +16,360 @@
       box-sizing: border-box;
     }
 
+    html,
     body {
-      font-family: 'Arial', sans-serif;
-      background-color: #1a1a1a;
+      width: 100%;
+      height: 100%;
+      font-family: 'Courier New', monospace;
+      background-color: #1a1a2e;
       color: #fff;
       overflow: hidden;
     }
 
     #gameContainer {
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100%;
       position: relative;
     }
 
-    #canvas {
+    /* 3D Canvas */
+    canvas {
       display: block;
       width: 100%;
       height: 100%;
     }
 
-    /* HUD Elements */
+    /* UI Panels */
+    .panel {
+      position: fixed;
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #00ff00;
+      border-radius: 5px;
+      padding: 15px;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+    }
+
+    /* Top-left HUD */
     #hud {
-      position: absolute;
       top: 10px;
       left: 10px;
-      font-size: 14px;
-      background: rgba(0, 0, 0, 0.7);
-      padding: 10px;
-      border-radius: 5px;
-      font-family: monospace;
+      min-width: 200px;
     }
 
-    #hud > div {
-      margin-bottom: 5px;
+    .hud-line {
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      min-width: 180px;
     }
 
-    #blinkTimer {
+    .label {
       color: #00ff00;
-      font-size: 18px;
       font-weight: bold;
     }
 
-    #health {
-      color: #ff0000;
-    }
-
-    #score {
+    .value {
       color: #ffff00;
     }
 
-    /* Minimap */
-    #minimap {
-      position: absolute;
-      bottom: 10px;
-      right: 10px;
-      border: 2px solid #00ff00;
-      border-radius: 5px;
-      background: rgba(0, 20, 0, 0.8);
+    .health-critical {
+      color: #ff0000;
     }
 
-    /* Messages */
+    /* Blink Timer - Large Display */
+    #blinkTimerPanel {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 150px;
+      height: 150px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      border-color: #ff00ff;
+      z-index: 100;
+    }
+
+    #blinkTimerValue {
+      font-size: 48px;
+      color: #ff00ff;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    /* Minimap - Bottom-right */
+    #minimapPanel {
+      bottom: 10px;
+      right: 10px;
+      width: 220px;
+      height: 220px;
+      padding: 5px;
+      border-color: #0099ff;
+    }
+
+    #minimap {
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 20, 50, 0.9);
+    }
+
+    /* Messages/Notifications */
     #messages {
-      position: absolute;
+      position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
       text-align: center;
-      font-size: 24px;
-      color: #ffff00;
-      text-shadow: 0 0 10px #ffff00;
+      pointer-events: none;
+      z-index: 50;
     }
 
     .message {
-      margin-bottom: 10px;
-      animation: fadeInOut 3s ease-out;
+      font-size: 24px;
+      color: #ffff00;
+      text-shadow: 0 0 10px #ffff00;
+      margin-bottom: 20px;
+      animation: fadeInOut 3s ease-out forwards;
+    }
+
+    .message.warning {
+      color: #ff6600;
+      text-shadow: 0 0 10px #ff6600;
+    }
+
+    .message.error {
+      color: #ff0000;
+      text-shadow: 0 0 10px #ff0000;
     }
 
     @keyframes fadeInOut {
-      0% { opacity: 1; }
-      70% { opacity: 1; }
-      100% { opacity: 0; }
+      0% {
+        opacity: 0;
+      }
+
+      10% {
+        opacity: 1;
+      }
+
+      90% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 0;
+      }
     }
 
-    /* Loading screen */
+    /* Loading/Connecting Screen */
     #loadingScreen {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: #1a1a1a;
+      background: #1a1a2e;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       z-index: 1000;
-      flex-direction: column;
+    }
+
+    .loading-content {
+      text-align: center;
     }
 
     .spinner {
-      width: 50px;
-      height: 50px;
+      width: 60px;
+      height: 60px;
       border: 4px solid #00ff00;
       border-top-color: transparent;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     #loadingText {
-      margin-top: 20px;
       font-size: 18px;
       color: #00ff00;
+      margin-bottom: 10px;
+    }
+
+    #lobbyCode {
+      font-size: 24px;
+      color: #ffff00;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+
+    /* Controls Help */
+    #controls {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid #00ff00;
+      padding: 10px;
+      max-width: 300px;
+    }
+
+    .control-row {
+      margin-bottom: 4px;
+    }
+
+    .key {
+      color: #ffff00;
+      font-weight: bold;
+    }
+
+    .desc {
+      color: #00ff00;
+    }
+
+    /* Match End Screen */
+    #matchEndScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.9);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+
+    #matchEndScreen.show {
+      display: flex;
+    }
+
+    .end-content {
+      text-align: center;
+      color: #ffff00;
+    }
+
+    .end-content h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+      color: #ff00ff;
+    }
+
+    .winner-name {
+      font-size: 24px;
+      color: #00ff00;
+      margin-bottom: 10px;
+    }
+
+    .stats-table {
+      margin-top: 30px;
+      background: rgba(0, 255, 0, 0.1);
+      padding: 20px;
+      border-radius: 5px;
+    }
+
+    .stat-row {
+      margin-bottom: 10px;
+      font-size: 16px;
     }
   </style>
 </head>
-<body>
-  <div id="gameContainer">
-    <canvas id="canvas"></canvas>
 
-    <!-- Loading Screen -->
-    <div id="loadingScreen">
+<body>
+  <div id="gameContainer"></div>
+
+  <!-- Loading Screen -->
+  <div id="loadingScreen" class="show">
+    <div class="loading-content">
       <div class="spinner"></div>
       <div id="loadingText">Connecting to server...</div>
+      <div id="lobbyCode" style="display:none">Lobby: <span id="lobbyCodeValue">????</span></div>
     </div>
-
-    <!-- HUD -->
-    <div id="hud">
-      <div id="health">HP: 100/100</div>
-      <div id="score">Score: 0</div>
-      <div id="blinkTimer">Blink: Ready</div>
-      <div id="attachStatus">Status: Alone</div>
-    </div>
-
-    <!-- Minimap -->
-    <canvas id="minimap" width="200" height="200"></canvas>
-
-    <!-- Messages -->
-    <div id="messages"></div>
   </div>
 
-  <script src="bundle.js"></script>
+  <!-- Match End Screen -->
+  <div id="matchEndScreen">
+    <div class="end-content">
+      <h1 id="endTitle">MATCH OVER</h1>
+      <div id="endStats"></div>
+    </div>
+  </div>
+
+  <!-- Game HUD -->
+  <div id="hud" class="panel">
+    <div class="hud-line">
+      <span class="label">HP</span>
+      <span class="value" id="hudHealth">100/100</span>
+    </div>
+    <div class="hud-line">
+      <span class="label">Score</span>
+      <span class="value" id="hudScore">0</span>
+    </div>
+    <div class="hud-line">
+      <span class="label">Orbs</span>
+      <span class="value" id="hudOrbs">0</span>
+    </div>
+    <div class="hud-line">
+      <span class="label">Players</span>
+      <span class="value" id="hudPlayers">0/8</span>
+    </div>
+    <div class="hud-line">
+      <span class="label">Monsters</span>
+      <span class="value" id="hudMonsters">0</span>
+    </div>
+    <div class="hud-line" style="margin-top: 10px; border-top: 1px solid #00ff00; padding-top: 10px;">
+      <span class="label">Status</span>
+      <span class="value" id="hudStatus">Ready</span>
+    </div>
+  </div>
+
+  <!-- Blink Timer -->
+  <div id="blinkTimerPanel" class="panel" style="display:none;">
+    <div id="blinkTimerValue">20.0</div>
+  </div>
+
+  <!-- Minimap -->
+  <div id="minimapPanel" class="panel">
+    <canvas id="minimap" width="210" height="210"></canvas>
+  </div>
+
+  <!-- Messages -->
+  <div id="messages"></div>
+
+  <!-- Controls Help -->
+  <div id="controls">
+    <div class="control-row"><span class="key">WASD</span> <span class="desc">Move</span></div>
+    <div class="control-row"><span class="key">Mouse</span> <span class="desc">Look</span></div>
+    <div class="control-row"><span class="key">R</span> <span class="desc">Blink</span></div>
+    <div class="control-row"><span class="key">V</span> <span class="desc">Attach</span></div>
+    <div class="control-row"><span class="key">X</span> <span class="desc">Decline</span></div>
+    <div class="control-row"><span class="key">I</span> <span class="desc">Share Timer</span></div>
+    <div class="control-row"><span class="key">U+U</span> <span class="desc">Detach</span></div>
+  </div>
+
+  <!-- Three.js Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Socket.IO Library -->
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+  <!-- Game Code -->
+  <script src="./shared/types.js"></script>
+  <script src="./network.js"></script>
+  <script src="./playerController.js"></script>
+  <script src="./scene.js"></script>
+  <script src="./ui.js"></script>
+  <script src="./main.js"></script>
 </body>
+
 </html>

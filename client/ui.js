@@ -1,277 +1,198 @@
 /**
  * client/ui.js
  * 
- * Manages HUD (Heads-Up Display) and minimap rendering.
- * 
- * HUD displays:
- * - Health bar
- * - Current score
- * - Blink timer (with 0.1s precision)
- * - Attachment status
- * - Area broadcasts (nearby blink timers)
- * 
- * Minimap displays:
- * - Local arena layout
- * - Nearby players
- * - Monsters (if visible)
- * - Orbs
- * - Safe zone boundary (shrinking arena)
+ * UI rendering and management for HUD, minimap, messages, and screens.
  */
 
-import { MINIMAP_RANGE, MINIMAP_WIDTH, MINIMAP_HEIGHT } from '../shared/constants.js';
-
-export class UI {
+class UIManager {
   constructor() {
-    this.hudElements = {
-      health: document.getElementById('health'),
-      score: document.getElementById('score'),
-      blinkTimer: document.getElementById('blinkTimer'),
-      attachStatus: document.getElementById('attachStatus'),
+    this.elements = {
+      loadingScreen: document.getElementById('loadingScreen'),
+      hudHealth: document.getElementById('hudHealth'),
+      hudScore: document.getElementById('hudScore'),
+      hudOrbs: document.getElementById('hudOrbs'),
+      hudPlayers: document.getElementById('hudPlayers'),
+      hudMonsters: document.getElementById('hudMonsters'),
+      hudStatus: document.getElementById('hudStatus'),
+      blinkTimerPanel: document.getElementById('blinkTimerPanel'),
+      blinkTimerValue: document.getElementById('blinkTimerValue'),
+      minimap: document.getElementById('minimap'),
+      messages: document.getElementById('messages'),
+      matchEndScreen: document.getElementById('matchEndScreen'),
     };
 
-    this.minimapCanvas = document.getElementById('minimap');
-    this.minimapCtx = this.minimapCanvas.getContext('2d');
-    this.messagesContainer = document.getElementById('messages');
-
-    // HUD state
-    this.currentHealth = 100;
-    this.currentScore = 0;
-    this.blinkTimerRemaining = 0;
-    this.attachmentStatus = 'Alone';
-
-    // Messages queue
-    this.messages = []; // array of { text, createdAt }
-  }
-
-  /**
-   * Update health display
-   */
-  updateHealth(current, max) {
-    this.currentHealth = current;
-    this.hudElements.health.textContent = `HP: ${current}/${max}`;
-
-    // Change color based on health
-    if (current > max * 0.5) {
-      this.hudElements.health.style.color = '#00ff00'; // green
-    } else if (current > max * 0.25) {
-      this.hudElements.health.style.color = '#ffff00'; // yellow
-    } else {
-      this.hudElements.health.style.color = '#ff0000'; // red
-    }
-  }
-
-  /**
-   * Update score display
-   */
-  updateScore(score) {
-    this.currentScore = score;
-    this.hudElements.score.textContent = `Score: ${score}`;
-  }
-
-  /**
-   * Update blink timer display
-   * Precision: 0.1 seconds
-   */
-  updateBlinkTimer(remainingSeconds) {
-    this.blinkTimerRemaining = Math.max(0, remainingSeconds);
-
-    if (this.blinkTimerRemaining <= 0) {
-      this.hudElements.blinkTimer.textContent = 'Blink: Ready';
-      this.hudElements.blinkTimer.style.color = '#00ff00';
-    } else {
-      // Format to 0.1s precision
-      const formatted = this.blinkTimerRemaining.toFixed(1);
-      this.hudElements.blinkTimer.textContent = `Blink: ${formatted}s`;
-      this.hudElements.blinkTimer.style.color = '#ffff00';
-    }
-  }
-
-  /**
-   * Update attachment status
-   */
-  updateAttachmentStatus(status) {
-    this.attachmentStatus = status;
-    this.hudElements.attachStatus.textContent = `Status: ${status}`;
-  }
-
-  /**
-   * Draw minimap based on current game state
-   */
-  drawMinimap(playerPosition, playerRotation, gameState) {
-    const ctx = this.minimapCtx;
-    const width = MINIMAP_WIDTH;
-    const height = MINIMAP_HEIGHT;
-    const scale = width / (MINIMAP_RANGE * 2);
-
-    // Clear minimap
-    ctx.fillStyle = '#001a00';
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw border
-    ctx.strokeStyle = '#00ff00';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, width, height);
-
-    // Center point (where player is)
-    const centerX = width / 2;
-    const centerY = height / 2;
-
-    // Draw visited areas (simplified: just the immediate area)
-    ctx.fillStyle = 'rgba(0, 100, 0, 0.3)';
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw safe zone circle (arena boundary)
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
-    ctx.lineWidth = 2;
-    const safeRadius = 100; // TODO: get from gameState
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, safeRadius * scale, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Draw shrinking zone indicator
-    if (gameState && gameState.arenaSafeRadius) {
-      ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, gameState.arenaSafeRadius * scale, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    // Draw other players
-    if (gameState && gameState.players) {
-      for (const player of gameState.players) {
-        if (player.id === playerPosition.id) continue; // Skip self
-
-        const relX = player.position.x - playerPosition.x;
-        const relZ = player.position.z - playerPosition.z;
-        const mapX = centerX + relX * scale;
-        const mapY = centerY + relZ * scale;
-
-        ctx.fillStyle = '#0099ff';
-        ctx.beginPath();
-        ctx.arc(mapX, mapY, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Draw monsters
-    if (gameState && gameState.monsters) {
-      for (const monster of gameState.monsters) {
-        const relX = monster.position.x - playerPosition.x;
-        const relZ = monster.position.z - playerPosition.z;
-        const mapX = centerX + relX * scale;
-        const mapY = centerY + relZ * scale;
-
-        // Only show on minimap for first 10 seconds after spawn
-        const timeSinceSpawn = (Date.now() - monster.spawnTime) / 1000;
-        if (timeSinceSpawn < 10) {
-          ctx.fillStyle = '#ff0000';
-          ctx.beginPath();
-          ctx.arc(mapX, mapY, 4, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-    }
-
-    // Draw orbs
-    if (gameState && gameState.orbs) {
-      for (const orb of gameState.orbs) {
-        if (orb.collected) continue;
-
-        const relX = orb.position.x - playerPosition.x;
-        const relZ = orb.position.z - playerPosition.z;
-        const mapX = centerX + relX * scale;
-        const mapY = centerY + relZ * scale;
-
-        ctx.fillStyle = '#ffff00';
-        ctx.beginPath();
-        ctx.arc(mapX, mapY, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Draw player indicator (center, pointing forward)
-    const arrowLength = 8;
-    ctx.fillStyle = '#00ff00';
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Draw facing direction arrow
-    const cosY = Math.cos(playerRotation.y);
-    const sinY = Math.sin(playerRotation.y);
-    ctx.strokeStyle = '#00ff00';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.lineTo(
-      centerX + sinY * arrowLength,
-      centerY + cosY * arrowLength
-    );
-    ctx.stroke();
-  }
-
-  /**
-   * Add a broadcast message to display (blink timer, monster signal, etc.)
-   */
-  addBroadcast(text) {
-    const messageEl = document.createElement('div');
-    messageEl.className = 'message';
-    messageEl.textContent = text;
-    this.messagesContainer.appendChild(messageEl);
-
-    // Remove after animation
-    setTimeout(() => {
-      messageEl.remove();
-    }, 3000);
-  }
-
-  /**
-   * Show a status message briefly
-   */
-  showMessage(text, duration = 3) {
-    const messageEl = document.createElement('div');
-    messageEl.className = 'message';
-    messageEl.textContent = text;
-    this.messagesContainer.appendChild(messageEl);
-
-    setTimeout(() => {
-      messageEl.remove();
-    }, duration * 1000);
-  }
-
-  /**
-   * Show loading screen
-   */
-  showLoading(text = 'Loading...') {
-    const loadingScreen = document.getElementById('loadingScreen');
-    document.getElementById('loadingText').textContent = text;
-    loadingScreen.style.display = 'flex';
+    this.minimapCtx = this.elements.minimap.getContext('2d');
+    this.minimapWidth = this.elements.minimap.width;
+    this.minimapHeight = this.elements.minimap.height;
   }
 
   /**
    * Hide loading screen
    */
   hideLoading() {
-    const loadingScreen = document.getElementById('loadingScreen');
-    loadingScreen.style.display = 'none';
+    this.elements.loadingScreen.classList.remove('show');
   }
 
   /**
-   * Update entire HUD at once (useful for efficiency)
+   * Update HUD with player stats
    */
-  updateHUD(playerState) {
-    if (playerState.health !== undefined) {
-      this.updateHealth(playerState.health, playerState.maxHealth || 100);
+  updateHUD(player, gameState) {
+    if (!player) return;
+
+    const health = `${player.health.toFixed(0)}/${player.maxHealth}`;
+    this.elements.hudHealth.textContent = health;
+    this.elements.hudHealth.style.color = player.health < 30 ? '#ff0000' : '#ffff00';
+
+    this.elements.hudScore.textContent = player.score || 0;
+    this.elements.hudOrbs.textContent = player.orbsCollected || 0;
+
+    const playerCount = gameState?.players?.length || 0;
+    this.elements.hudPlayers.textContent = `${playerCount}/8`;
+
+    const monsterCount = gameState?.monsters?.length || 0;
+    this.elements.hudMonsters.textContent = monsterCount;
+
+    let status = 'Alone';
+    if (player.attachedTo) {
+      status = '💙 Paired';
     }
-    if (playerState.score !== undefined) {
-      this.updateScore(playerState.score);
-    }
-    if (playerState.blinkTimerRemaining !== undefined) {
-      this.updateBlinkTimer(playerState.blinkTimerRemaining);
-    }
-    if (playerState.attachmentStatus !== undefined) {
-      this.updateAttachmentStatus(playerState.attachmentStatus);
+    this.elements.hudStatus.textContent = status;
+  }
+
+  /**
+   * Update blink timer display
+   */
+  updateBlinkTimer(secondsRemaining) {
+    if (secondsRemaining > 0) {
+      this.elements.blinkTimerPanel.style.display = 'flex';
+      this.elements.blinkTimerValue.textContent = secondsRemaining.toFixed(1);
+
+      const percent = secondsRemaining / 20;
+      let color;
+      if (percent > 0.6) {
+        color = '#00ff00';
+      } else if (percent > 0.3) {
+        color = '#ffff00';
+      } else {
+        color = '#ff0000';
+      }
+      this.elements.blinkTimerValue.style.color = color;
+    } else {
+      this.elements.blinkTimerPanel.style.display = 'none';
     }
   }
+
+  /**
+   * Draw minimap
+   */
+  drawMinimap(player, gameState, arenaRadius) {
+    const ctx = this.minimapCtx;
+    const centerX = this.minimapWidth / 2;
+    const centerY = this.minimapHeight / 2;
+    const scale = (this.minimapWidth / 2) / 50;
+
+    ctx.fillStyle = 'rgba(0, 20, 50, 0.9)';
+    ctx.fillRect(0, 0, this.minimapWidth, this.minimapHeight);
+
+    // Arena boundary
+    ctx.strokeStyle = '#0099ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, (arenaRadius / 50) * (this.minimapWidth / 2), 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (!gameState) return;
+
+    // Safe zone
+    const safeRadius = gameState.arenaSafeRadius || arenaRadius;
+    ctx.strokeStyle = '#ff0000';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, (safeRadius / 50) * (this.minimapWidth / 2), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Player
+    if (player) {
+      ctx.fillStyle = '#ffff00';
+      const playerX = centerX + (player.position.x * scale);
+      const playerY = centerY + (player.position.z * scale);
+      ctx.fillRect(playerX - 3, playerY - 3, 6, 6);
+
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(playerX, playerY);
+      ctx.lineTo(playerX + player.gaze.x * 10, playerY + player.gaze.z * 10);
+      ctx.stroke();
+    }
+
+    // Other players
+    if (gameState.players) {
+      for (const p of gameState.players) {
+        if (p.id === player?.id) continue;
+        ctx.fillStyle = p.attachedTo === player?.id ? '#0088ff' : '#00ff00';
+        const px = centerX + (p.position.x * scale);
+        const py = centerY + (p.position.z * scale);
+        ctx.fillRect(px - 2, py - 2, 4, 4);
+      }
+    }
+
+    // Monsters
+    if (gameState.monsters) {
+      for (const m of gameState.monsters) {
+        ctx.fillStyle = m.state === 'roaring' ? '#ff0000' : '#ff6600';
+        const mx = centerX + (m.position.x * scale);
+        const my = centerY + (m.position.z * scale);
+        ctx.beginPath();
+        ctx.arc(mx, my, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  /**
+   * Show a message
+   */
+  showMessage(text, type = 'normal') {
+    const msg = document.createElement('div');
+    msg.className = `message ${type}`;
+    msg.textContent = text;
+    this.elements.messages.appendChild(msg);
+    setTimeout(() => msg.remove(), 3000);
+  }
+
+  /**
+   * Show match end screen
+   */
+  showMatchEnd(results) {
+    this.elements.matchEndScreen.classList.add('show');
+
+    let title = 'GAME OVER';
+    let statsHTML = '';
+
+    if (results.winners && results.winners.length > 0) {
+      const winner = results.winners[0];
+      title = `🏆 ${winner.username} WINS! 🏆`;
+      statsHTML = `<div class="winner-name">Score: ${winner.score}</div>`;
+    }
+
+    if (results.playerStats) {
+      statsHTML += '<div class="stats-table">';
+      statsHTML += '<div class="stat-row"><strong>Final Rankings:</strong></div>';
+
+      const sorted = [...results.playerStats].sort((a, b) => b.score - a.score);
+      for (let i = 0; i < Math.min(5, sorted.length); i++) {
+        const p = sorted[i];
+        statsHTML += `<div class="stat-row">#${i + 1}: ${p.username} - ${p.score} pts</div>`;
+      }
+      statsHTML += '</div>';
+    }
+
+    document.getElementById('endTitle').textContent = title;
+    document.getElementById('endStats').innerHTML = statsHTML;
+  }
 }
+
+window.UIManager = UIManager;

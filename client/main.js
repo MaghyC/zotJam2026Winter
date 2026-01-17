@@ -1,214 +1,226 @@
 /**
  * client/main.js
  * 
- * Main entry point for the game client.
- * 
- * Responsibilities:
- * 1. Initialize all systems (network, scene, UI, controller)
- * 2. Set up the game loop
- * 3. Coordinate between systems
- * 4. Handle game lifecycle (connecting, playing, disconnecting)
+ * Main game client - orchestrates all game systems (network, input, rendering, UI).
+ * Entry point for the browser application.
  */
 
-import { NetworkManager } from './network.js';
-import { Scene } from './scene.js';
-import { PlayerController } from './playerController.js';
-import { UI } from './ui.js';
-import { MESSAGE_TYPES } from '../shared/constants.js';
-
-class Game {
+class GameClient {
   constructor() {
     this.network = null;
+    this.ui = null;
     this.scene = null;
     this.controller = null;
-    this.ui = null;
 
-    // Game state
-    this.isRunning = false;
-    this.localPlayerId = null;
-    this.serverGameState = null;
+    this.localPlayer = null;
+    this.gameState = null;
+
     this.lastFrameTime = Date.now();
+    this.animationFrameId = null;
   }
 
   /**
-   * Initialize and start the game
+   * Initialize the game
    */
-  async initialize() {
+  async init() {
+    console.log('%c=== Multi-Lobby Blink Royale ===', 'color: #00ff00; font-size: 16px; font-weight: bold;');
+
     try {
-      this.ui = new UI();
-      this.ui.showLoading('Initializing game...');
+      // Initialize UI
+      this.ui = new UIManager();
+      this.ui.showMessage('Initializing game...', 'normal');
 
-      // Initialize scene and graphics
-      this.ui.showLoading('Loading 3D scene...');
-      const canvas = document.getElementById('canvas');
-      this.scene = new Scene();
-      this.scene.initialize(canvas);
-
-      // Initialize networking
-      this.ui.showLoading('Connecting to server...');
+      // Connect to server
       this.network = new NetworkManager();
-      
-      // Get server URL from environment or default
-      const serverUrl = window.location.origin;
-      
-      const lobbyData = await this.network.connect('Player');
-      this.localPlayerId = lobbyData.playerId;
+      await this.network.connect('Player');
 
-      this.ui.hideLoading();
+      console.log('Connected to server, waiting for game to start...');
 
-      // Initialize controller
+      // Setup network callbacks
+      this.setupNetworkCallbacks();
+
+      // Wait for join response
+      await new Promise((resolve) => {
+        const onJoined = (data) => {
+          this.network.off('joined_lobby', onJoined);
+          this.onLobbyJoined(data);
+          resolve();
+        };
+        this.network.on('joined_lobby', onJoined);
+      });
+
+      // Initialize Three.js scene
+      this.scene = new GameScene(document.getElementById('gameContainer'));
+      window.gameScene = this.scene;
+
+      // Initialize player controller
       this.controller = new PlayerController(this.scene, this.network);
 
-      // Initialize player mesh
-      const initialPos = { x: 0, y: 1, z: 0 };
-      this.scene.createPlayerMesh(this.localPlayerId, initialPos);
+      // Hide loading screen
+      this.ui.hideLoading();
+      this.ui.showMessage('Game started! Use WASD to move, mouse to look', 'normal');
 
-      // Set up network event listeners
-      this.setupNetworkListeners();
+      // Start render loop
+      this.startRenderLoop();
 
-      // Start game loop
-      this.isRunning = true;
-      this.gameLoop();
-
-      console.log('Game initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize game:', error);
-      this.ui.showMessage('Failed to connect to server: ' + error.message);
+      console.error('[Main] Init error:', error);
+      this.ui.showMessage(`Error: ${error.message}`, 'error');
     }
   }
 
   /**
-   * Set up event listeners for network messages
+   * Setup network event callbacks
    */
-  setupNetworkListeners() {
-    // Receive lobby state updates (position, monster, orb updates)
-    this.network.on(MESSAGE_TYPES.LOBBY_STATE, (data) => {
-      this.handleLobbyStateUpdate(data);
+  setupNetworkCallbacks() {
+    this.network.on('state_update', (data) => {
+      this.onStateUpdate(data);
     });
 
-    // Blink action from other players
-    this.network.on(MESSAGE_TYPES.BLINK_ACTION, (data) => {
-      if (data.playerId !== this.localPlayerId) {
-        this.ui.showMessage(`${data.playerId} blinked!`);
+    this.network.on('match_start', (data) => {
+      this.ui.showMessage('🎮 MATCH STARTED!', 'normal');
+    });
+
+    this.network.on('match_end', (data) => {
+      this.onMatchEnd(data);
+    });
+
+    this.network.on('player_joined', (data) => {
+      this.ui.showMessage(`${data.username} joined the game`, 'normal');
+    });
+
+    this.network.on('player_left', (data) => {
+      this.ui.showMessage('A player left', 'warning');
+    });
+
+    this.network.on('orb_collected', (data) => {
+      if (data.playerId === this.network.playerId) {
+        this.ui.showMessage(`+${data.points} pts`, 'normal');
       }
     });
 
-    // Orb collected
-    this.network.on(MESSAGE_TYPES.ORB_COLLECTED, (data) => {
-      if (data.orbId) {
-        this.scene.removeOrbMesh(data.orbId);
-      }
-      if (data.playerId !== this.localPlayerId) {
-        this.ui.showMessage(`${data.playerId} collected an orb!`);
+    this.network.on('blink_response', (data) => {
+      if (!data.success) {
+        const remaining = data.cooldownRemaining || 0;
+        this.ui.showMessage(`Blink on cooldown: ${remaining.toFixed(1)}s`, 'warning');
       }
     });
 
-    // Blink timer broadcast
-    this.network.on(MESSAGE_TYPES.BLINK_TIMER_BROADCAST, (data) => {
-      const remaining = data.blinkTimerRemaining.toFixed(1);
-      this.ui.addBroadcast(`${data.from}: Blink ready in ${remaining}s`);
+    this.network.on('attach_request', (data) => {
+      this.ui.showMessage(`${data.fromPlayerId} requests attachment (press V)`, 'normal');
     });
 
-    // Monster attack
-    this.network.on(MESSAGE_TYPES.MONSTER_ATTACK, (data) => {
-      if (data.targetId === this.localPlayerId) {
-        this.ui.showMessage('Monster attacked! Health reduced!', 2);
-      }
+    this.network.on('attach_accepted', (data) => {
+      this.ui.showMessage('Attachment accepted! 💙', 'normal');
     });
 
-    // Attachment events
-    this.network.on(MESSAGE_TYPES.ATTACH_REQUEST, (data) => {
-      if (data.to === this.localPlayerId) {
-        console.log(`Attachment request from ${data.from}`);
-        // TODO: Show UI for accepting/declining
-      }
+    this.network.on('attach_declined', (data) => {
+      this.ui.showMessage('Attachment declined', 'warning');
     });
 
-    this.network.on(MESSAGE_TYPES.ATTACH_RESPONSE, (data) => {
-      if (data.to === this.localPlayerId && data.accepted) {
-        this.ui.updateAttachmentStatus('Attached');
-        this.ui.showMessage('Successfully attached!');
-      }
+    this.network.on('disconnected', () => {
+      this.ui.showMessage('Disconnected from server', 'error');
+    });
+
+    this.network.on('server_error', (data) => {
+      this.ui.showMessage(`Server error: ${data.message}`, 'error');
     });
   }
 
   /**
-   * Handle lobby state update from server
+   * Handle lobby join response
    */
-  handleLobbyStateUpdate(data) {
-    this.serverGameState = data;
-
-    // Update other players
-    if (data.players) {
-      for (const playerData of data.players) {
-        if (playerData.id === this.localPlayerId) {
-          // Update HUD with local player data
-          this.ui.updateHUD({
-            health: playerData.health,
-            maxHealth: 100,
-            score: playerData.score,
-          });
-          continue;
-        }
-
-        // Update other player meshes
-        if (!this.scene.playerMeshes.has(playerData.id)) {
-          this.scene.createPlayerMesh(playerData.id, playerData.position);
-        } else {
-          this.scene.updatePlayerMesh(playerData.id, playerData.position, playerData.rotation);
-        }
-      }
-    }
-
-    // Update monsters
-    if (data.monsters) {
-      for (const monsterData of data.monsters) {
-        if (!this.scene.monsterMeshes.has(monsterData.id)) {
-          this.scene.createMonsterMesh(monsterData.id, monsterData.position);
-        } else {
-          this.scene.updateMonsterMesh(monsterData.id, monsterData.position);
-        }
-      }
-    }
-
-    // Update minimap
-    const playerState = this.controller.getState();
-    this.ui.drawMinimap(playerState.position, playerState.rotation, data);
+  onLobbyJoined(data) {
+    console.log('[Main] Joined lobby:', data.lobbyCode);
+    this.ui.showMessage(`Joined lobby: ${data.lobbyCode}`, 'normal');
+    document.getElementById('lobbyCodeValue').textContent = data.lobbyCode;
+    document.getElementById('lobbyCode').style.display = 'block';
   }
 
   /**
-   * Main game loop
+   * Handle server state update
    */
-  gameLoop() {
-    // Calculate delta time
-    const now = Date.now();
-    const deltaTime = (now - this.lastFrameTime) / 1000;
-    this.lastFrameTime = now;
+  onStateUpdate(data) {
+    if (!data) return;
 
-    // Update player controller
-    this.controller.update(deltaTime);
+    // Store game state
+    this.gameState = data;
 
-    // Update blink timer display
-    // TODO: Get blink timer from server state
-    // this.ui.updateBlinkTimer(blinkRemaining);
+    // Find local player
+    if (data.players && data.players.length > 0) {
+      this.localPlayer = data.players.find(p => p.id === this.network.playerId);
+    }
 
-    // Render scene
-    this.scene.render();
+    // Update scene
+    if (this.scene) {
+      this.scene.updatePlayers(data.players || []);
+      this.scene.updateMonsters(data.monsters || []);
+      this.scene.updateOrbs(data.orbs || []);
+      this.scene.updateArenaSafeRadius(data.arenaSafeRadius || 100);
+    }
 
-    // Continue loop
-    if (this.isRunning) {
-      requestAnimationFrame(() => this.gameLoop());
+    // Update UI
+    if (this.localPlayer && this.ui) {
+      this.ui.updateHUD(this.localPlayer, data);
+
+      // Calculate blink timer remaining
+      const now = Date.now();
+      const timeUntilBlink = Math.max(0, (this.localPlayer.blinkCooldownEnd - now) / 1000);
+      this.ui.updateBlinkTimer(timeUntilBlink);
+
+      // Draw minimap
+      this.ui.drawMinimap(this.localPlayer, data, 100);
+    }
+  }
+
+  /**
+   * Handle match end
+   */
+  onMatchEnd(results) {
+    console.log('[Main] Match ended:', results);
+    this.ui.showMatchEnd(results);
+    this.stopRenderLoop();
+  }
+
+  /**
+   * Start the render loop
+   */
+  startRenderLoop() {
+    const loop = () => {
+      this.animationFrameId = requestAnimationFrame(loop);
+
+      const now = Date.now();
+      const deltaTime = Math.min((now - this.lastFrameTime) / 1000, 0.1); // Cap at 100ms
+      this.lastFrameTime = now;
+
+      // Update player controller
+      if (this.controller) {
+        this.controller.update(deltaTime);
+      }
+
+      // Render scene
+      if (this.scene) {
+        this.scene.render();
+      }
+    };
+
+    this.animationFrameId = requestAnimationFrame(loop);
+  }
+
+  /**
+   * Stop the render loop
+   */
+  stopRenderLoop() {
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
     }
   }
 }
 
-// Initialize game when page loads
-window.addEventListener('DOMContentLoaded', () => {
-  const game = new Game();
-  game.initialize();
-});
-
-// Handle page unload
-window.addEventListener('beforeunload', () => {
-  console.log('Closing game...');
+// Initialize on page load
+window.addEventListener('DOMContentLoaded', async () => {
+  const game = new GameClient();
+  await game.init();
+  window.gameClient = game;
 });

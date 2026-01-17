@@ -1,298 +1,349 @@
 /**
  * client/scene.js
  * 
- * Sets up the 3D coliseum arena using Three.js.
- * 
- * Responsibilities:
- * - Create Three.js scene, camera, lights
- * - Generate coliseum geometry (walls, floor, obstacles)
- * - Manage player/monster/orb rendering objects
- * - Update render loop
- * 
- * Learning Note:
- * Three.js uses a right-handed coordinate system:
- * - X axis: right
- * - Y axis: up
- * - Z axis: toward viewer
+ * Three.js 3D rendering system for the game arena.
+ * Manages scene geometry, lighting, player/monster/orb meshes, and camera.
  */
 
-import * as THREE from 'three';
+// Three.js is loaded globally via CDN
 
-export class Scene {
-  constructor() {
+class GameScene {
+  constructor(containerElement) {
+    this.container = containerElement;
     this.scene = null;
     this.camera = null;
     this.renderer = null;
-    this.coliseum = null;
-    this.playerMeshes = new Map(); // playerId -> THREE.Mesh
-    this.monsterMeshes = new Map(); // monsterId -> THREE.Mesh
-    this.orbMeshes = new Map(); // orbId -> THREE.Mesh
+
+    this.playerMeshes = new Map();
+    this.monsterMeshes = new Map();
+    this.orbMeshes = new Map();
+    this.arenaSafeRadius = 100;
+
+    this.init();
   }
 
   /**
-   * Initialize the Three.js scene
+   * Initialize Three.js scene
    */
-  initialize(canvas) {
-    // Scene setup
+  init() {
+    // Scene
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x0a0a0a);
-    this.scene.fog = new THREE.Fog(0x0a0a0a, 200, 500);
+    this.scene.fog = new THREE.Fog(0x0a0a0a, 300, 600);
 
-    // Camera setup
+    // Camera: First-person at eye level
     this.camera = new THREE.PerspectiveCamera(
-      75, // field of view
-      window.innerWidth / window.innerHeight, // aspect ratio
-      0.1, // near clipping
-      1000 // far clipping
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000
     );
-    this.camera.position.set(0, 2, 5);
+    this.camera.position.y = 1.8; // Eye height
 
-    // Renderer setup
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    // Renderer
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+    this.container.appendChild(this.renderer.domElement);
 
     // Lighting
     this.setupLights();
 
-    // Build coliseum arena
-    this.createColiseum();
+    // Arena
+    this.createArena();
 
-    // Handle window resize
+    // Handle resize
     window.addEventListener('resize', () => this.onWindowResize());
   }
 
   /**
-   * Set up scene lighting
-   * Using directional light (like sun) and ambient light
+   * Setup lighting system
    */
   setupLights() {
-    // Ambient light - provides base illumination
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
-    this.scene.add(ambientLight);
+    // Ambient light
+    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    this.scene.add(ambient);
 
-    // Directional light - creates shadows and highlights
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(50, 100, 50);
-    directionalLight.castShadow = true;
+    // Directional light (sun)
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(100, 150, 100);
+    sun.castShadow = true;
+    sun.shadow.camera.left = -200;
+    sun.shadow.camera.right = 200;
+    sun.shadow.camera.top = 200;
+    sun.shadow.camera.bottom = -200;
+    sun.shadow.mapSize.width = 2048;
+    sun.shadow.mapSize.height = 2048;
+    this.scene.add(sun);
 
-    // Set up shadow camera for the light
-    directionalLight.shadow.camera.left = -150;
-    directionalLight.shadow.camera.right = 150;
-    directionalLight.shadow.camera.top = 150;
-    directionalLight.shadow.camera.bottom = -150;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-
-    this.scene.add(directionalLight);
-
-    // Spotlight for effect
-    const spotlight = new THREE.SpotLight(0x0088ff, 0.3);
-    spotlight.position.set(0, 50, 0);
-    spotlight.target.position.set(0, 0, 0);
-    spotlight.castShadow = true;
-    this.scene.add(spotlight);
-    this.scene.add(spotlight.target);
+    // Spotlight for drama
+    const spot = new THREE.SpotLight(0x00ff88, 0.4);
+    spot.position.set(0, 80, 0);
+    spot.target.position.set(0, 0, 0);
+    spot.castShadow = true;
+    spot.angle = Math.PI / 3;
+    this.scene.add(spot);
+    this.scene.add(spot.target);
   }
 
   /**
-   * Create the coliseum arena
-   * Simplified: cylinder floor with walls
+   * Create arena geometry
    */
-  createColiseum() {
+  createArena() {
     const group = new THREE.Group();
 
-    // Floor - circular arena base
-    const floorGeometry = new THREE.CylinderGeometry(
-      100, // radius
-      100,
-      1, // height
-      64 // segments
-    );
-    const floorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1a4d2e,
-      metalness: 0.1,
-      roughness: 0.8,
+    // Floor: circular arena base (radius 100)
+    const floorGeom = new THREE.CylinderGeometry(100, 100, 1, 64);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x1a3a1a,
+      roughness: 0.8
     });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.position.y = 0;
+    const floor = new THREE.Mesh(floorGeom, floorMat);
     floor.receiveShadow = true;
+    floor.position.y = -0.5;
     group.add(floor);
 
-    // Walls - outer coliseum walls
-    const wallGeometry = new THREE.CylinderGeometry(
-      120, // outer radius
-      120,
-      50, // height
-      64
-    );
-    const wallMaterial = new THREE.MeshStandardMaterial({
-      color: 0x4a4a4a,
-      metalness: 0.2,
-      roughness: 0.9,
+    // Safe zone indicator (shrinking circle)
+    const sageZoneGeom = new THREE.TorusGeometry(100, 0.5, 16, 200);
+    const safeZoneMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+    this.safeZoneMesh = new THREE.Mesh(sageZoneGeom, safeZoneMat);
+    this.safeZoneMesh.position.y = 0.1;
+    this.safeZoneMesh.rotation.x = -Math.PI / 2;
+    group.add(this.safeZoneMesh);
+
+    // Outer walls
+    const wallGeom = new THREE.CylinderGeometry(120, 120, 60, 64);
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2a2a,
+      roughness: 0.9
     });
-    const walls = new THREE.Mesh(wallGeometry, wallMaterial);
-    walls.position.y = 25;
+    const walls = new THREE.Mesh(wallGeom, wallMat);
     walls.receiveShadow = true;
+    walls.position.y = 30;
     group.add(walls);
 
-    // Add some obstacles in the arena
+    // Obstacles for cover
     this.createObstacles(group);
 
-    this.coliseum = group;
     this.scene.add(group);
   }
 
   /**
-   * Create obstacles scattered in arena
-   * These serve as cover and visual interest
+   * Create scattered obstacles for cover/gameplay
    */
   createObstacles(parentGroup) {
     const obstacles = [
-      { x: 30, z: 30, size: 5 },
-      { x: -40, z: 20, size: 4 },
-      { x: 0, z: -50, size: 6 },
-      { x: -30, z: -30, size: 3 },
-      { x: 50, z: -10, size: 4 },
+      { x: 40, z: 40, w: 8, h: 10, d: 8 },
+      { x: -50, z: 30, w: 6, h: 8, d: 6 },
+      { x: 0, z: -60, w: 10, h: 12, d: 10 },
+      { x: -40, z: -40, w: 5, h: 7, d: 5 },
+      { x: 60, z: -20, w: 7, h: 9, d: 7 },
+      { x: -30, z: 0, w: 6, h: 8, d: 6 }
     ];
 
     for (const obs of obstacles) {
-      const boxGeometry = new THREE.BoxGeometry(obs.size, obs.size * 2, obs.size);
-      const boxMaterial = new THREE.MeshStandardMaterial({
+      const geom = new THREE.BoxGeometry(obs.w, obs.h, obs.d);
+      const mat = new THREE.MeshStandardMaterial({
         color: 0x8b7355,
-        metalness: 0,
-        roughness: 0.8,
+        roughness: 0.8
       });
-      const box = new THREE.Mesh(boxGeometry, boxMaterial);
-      box.position.set(obs.x, obs.size, obs.z);
-      box.castShadow = true;
-      box.receiveShadow = true;
-      parentGroup.add(box);
+      const mesh = new THREE.Mesh(geom, mat);
+      mesh.position.set(obs.x, obs.h / 2, obs.z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parentGroup.add(mesh);
+    }
+  }
+
+
+  /**
+   * Update player meshes from server state
+   */
+  updatePlayers(players) {
+    const serverIds = new Set();
+
+    for (const player of players) {
+      serverIds.add(player.id);
+
+      let mesh = this.playerMeshes.get(player.id);
+      if (!mesh) {
+        // Create new player mesh
+        const geom = new THREE.CapsuleGeometry(0.4, 1.8, 4, 8);
+        const mat = new THREE.MeshStandardMaterial({
+          color: player.attachmentState === 'ATTACHED' ? 0x00ff00 : 0x0066ff,
+          metalness: 0.3,
+          roughness: 0.6
+        });
+        mesh = new THREE.Mesh(geom, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        this.scene.add(mesh);
+        this.playerMeshes.set(player.id, mesh);
+      }
+
+      // Update position and rotation
+      mesh.position.set(player.position.x, player.position.y, player.position.z);
+      if (player.rotation) {
+        mesh.rotation.copy(player.rotation);
+      }
+
+      // Update color based on attachment state
+      if (mesh.material) {
+        mesh.material.color.setHex(
+          player.attachmentState === 'ATTACHED' ? 0x00ff00 : 0x0066ff
+        );
+      }
+    }
+
+    // Remove meshes for players no longer in game
+    for (const [id, mesh] of this.playerMeshes.entries()) {
+      if (!serverIds.has(id)) {
+        this.scene.remove(mesh);
+        this.playerMeshes.delete(id);
+      }
     }
   }
 
   /**
-   * Create a mesh for a player
+   * Update monster meshes from server state
    */
-  createPlayerMesh(playerId, initialPosition) {
-    const geometry = new THREE.CapsuleGeometry(0.4, 1.8, 4, 8);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x0066ff,
-      metalness: 0.5,
-      roughness: 0.5,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(initialPosition);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+  updateMonsters(monsters) {
+    const serverIds = new Set();
 
-    this.scene.add(mesh);
-    this.playerMeshes.set(playerId, mesh);
+    for (const monster of monsters) {
+      serverIds.add(monster.id);
 
-    return mesh;
-  }
+      let mesh = this.monsterMeshes.get(monster.id);
+      if (!mesh) {
+        // Create new monster mesh
+        const geom = new THREE.IcosahedronGeometry(0.8, 4);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0xff3333,
+          metalness: 0.6,
+          roughness: 0.4,
+          emissive: 0xff0000,
+          emissiveIntensity: 0.3
+        });
+        mesh = new THREE.Mesh(geom, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
 
-  /**
-   * Create a mesh for a monster
-   */
-  createMonsterMesh(monsterId, initialPosition) {
-    const geometry = new THREE.IcosahedronGeometry(0.8, 4);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xff3333,
-      metalness: 0.7,
-      roughness: 0.3,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(initialPosition);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+        // Add glow layer
+        const glowGeom = new THREE.IcosahedronGeometry(0.95, 4);
+        const glowMat = new THREE.MeshBasicMaterial({
+          color: 0xff0000,
+          transparent: true,
+          opacity: 0.2
+        });
+        const glow = new THREE.Mesh(glowGeom, glowMat);
+        mesh.add(glow);
 
-    // Add a red glow effect
-    const glowGeometry = new THREE.IcosahedronGeometry(0.9, 4);
-    const glowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xff0000,
-      transparent: true,
-      opacity: 0.3,
-    });
-    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-    mesh.add(glow);
+        this.scene.add(mesh);
+        this.monsterMeshes.set(monster.id, mesh);
+      }
 
-    this.scene.add(mesh);
-    this.monsterMeshes.set(monsterId, mesh);
+      // Update position
+      mesh.position.set(monster.position.x, monster.position.y, monster.position.z);
 
-    return mesh;
-  }
+      // Color: red if roaring, orange if hunting
+      const isRoaring = monster.state === 'ROARING';
+      if (mesh.material) {
+        mesh.material.color.setHex(isRoaring ? 0xff0000 : 0xff6600);
+        mesh.material.emissive.setHex(isRoaring ? 0xff0000 : 0xff6600);
+      }
+    }
 
-  /**
-   * Create a mesh for an orb
-   */
-  createOrbMesh(orbId, position) {
-    const geometry = new THREE.SphereGeometry(0.3, 32, 32);
-    const material = new THREE.MeshStandardMaterial({
-      color: 0xffff00,
-      metalness: 0.9,
-      roughness: 0.1,
-      emissive: 0xffff00,
-      emissiveIntensity: 0.5,
-    });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.copy(position);
-    mesh.castShadow = true;
-
-    // Spinning animation (handled in update loop)
-    mesh.userData.rotationSpeed = 0.02;
-
-    this.scene.add(mesh);
-    this.orbMeshes.set(orbId, mesh);
-
-    return mesh;
-  }
-
-  /**
-   * Update position and rotation of a player mesh
-   */
-  updatePlayerMesh(playerId, position, rotation) {
-    const mesh = this.playerMeshes.get(playerId);
-    if (mesh) {
-      mesh.position.copy(position);
-      mesh.rotation.copy(rotation);
+    // Remove meshes for monsters no longer in game
+    for (const [id, mesh] of this.monsterMeshes.entries()) {
+      if (!serverIds.has(id)) {
+        this.scene.remove(mesh);
+        this.monsterMeshes.delete(id);
+      }
     }
   }
 
   /**
-   * Update position of a monster mesh
+   * Update orb meshes from server state
    */
-  updateMonsterMesh(monsterId, position) {
-    const mesh = this.monsterMeshes.get(monsterId);
-    if (mesh) {
-      mesh.position.copy(position);
+  updateOrbs(orbs) {
+    const serverIds = new Set();
+
+    for (const orb of orbs) {
+      serverIds.add(orb.id);
+
+      let mesh = this.orbMeshes.get(orb.id);
+      if (!mesh) {
+        // Create new orb mesh
+        const geom = new THREE.SphereGeometry(0.3, 32, 32);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0xffff00,
+          metalness: 0.9,
+          roughness: 0.1,
+          emissive: 0xffff00,
+          emissiveIntensity: 0.6
+        });
+        mesh = new THREE.Mesh(geom, mat);
+        mesh.castShadow = true;
+        mesh.userData.rotation = 0;
+        this.scene.add(mesh);
+        this.orbMeshes.set(orb.id, mesh);
+      }
+
+      // Update position and rotate
+      mesh.position.set(orb.position.x, orb.position.y, orb.position.z);
+      mesh.userData.rotation += 0.05;
+      mesh.rotation.y = mesh.userData.rotation;
+    }
+
+    // Remove meshes for orbs no longer in game
+    for (const [id, mesh] of this.orbMeshes.entries()) {
+      if (!serverIds.has(id)) {
+        this.scene.remove(mesh);
+        this.orbMeshes.delete(id);
+      }
     }
   }
 
   /**
-   * Update camera to follow local player
-   * First-person view: camera at player head level
+   * Update arena safe zone radius indicator
    */
-  updateCamera(playerPosition, playerRotation) {
-    const headHeight = 0.8; // camera height above player position
+  updateArenaSafeRadius(radius) {
+    this.arenaSafeRadius = radius;
+    if (this.safeZoneMesh) {
+      const scale = radius / 100;
+      this.safeZoneMesh.scale.set(scale, scale, scale);
+
+      // Color: green if safe, red if danger zone
+      if (radius > 30) {
+        this.safeZoneMesh.material.color.setHex(0x00ff00);
+      } else {
+        this.safeZoneMesh.material.color.setHex(0xff0000);
+      }
+    }
+  }
+
+  /**
+   * Update camera position (first-person view)
+   */
+  updateCamera(position, rotation) {
+    // Camera follows player position at eye level
     this.camera.position.set(
-      playerPosition.x,
-      playerPosition.y + headHeight,
-      playerPosition.z
+      position.x,
+      position.y + 1.6, // Eye height
+      position.z
     );
-    this.camera.rotation.copy(playerRotation);
+
+    if (rotation) {
+      this.camera.rotation.order = 'YXZ';
+      this.camera.rotation.y = rotation.y;
+      this.camera.rotation.x = rotation.x;
+    }
   }
 
   /**
-   * Render current scene
+   * Render the scene
    */
   render() {
-    // Update orbits (spinning animation)
-    this.orbMeshes.forEach((mesh) => {
-      mesh.rotation.y += mesh.userData.rotationSpeed;
-    });
-
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -300,58 +351,10 @@ export class Scene {
    * Handle window resize
    */
   onWindowResize() {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
-
-    this.camera.aspect = width / height;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height);
-  }
-
-  /**
-   * Remove a player mesh
-   */
-  removePlayerMesh(playerId) {
-    const mesh = this.playerMeshes.get(playerId);
-    if (mesh) {
-      this.scene.remove(mesh);
-      this.playerMeshes.delete(playerId);
-    }
-  }
-
-  /**
-   * Remove a monster mesh
-   */
-  removeMonsterMesh(monsterId) {
-    const mesh = this.monsterMeshes.get(monsterId);
-    if (mesh) {
-      this.scene.remove(mesh);
-      this.monsterMeshes.delete(monsterId);
-    }
-  }
-
-  /**
-   * Remove an orb mesh
-   */
-  removeOrbMesh(orbId) {
-    const mesh = this.orbMeshes.get(orbId);
-    if (mesh) {
-      this.scene.remove(mesh);
-      this.orbMeshes.delete(orbId);
-    }
-  }
-
-  /**
-   * Get the Three.js scene for advanced manipulation
-   */
-  getScene() {
-    return this.scene;
-  }
-
-  /**
-   * Get the camera
-   */
-  getCamera() {
-    return this.camera;
+    this.renderer.setSize(w, h);
   }
 }

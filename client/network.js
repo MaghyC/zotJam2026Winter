@@ -1,190 +1,299 @@
 /**
  * client/network.js
  * 
- * Handles all client-side networking with the server using Socket.IO.
+ * Client-side networking with Socket.IO for real-time multiplayer.
+ * Handles all server communication with rate limiting and error recovery.
  * 
- * Responsibilities:
- * - Connect to server
- * - Send player input (position, rotation, actions)
- * - Receive server updates (player states, monster updates, etc.)
- * - Handle reconnection and error cases
- * - Rate limiting for frequent messages
- * 
- * Communication Flow:
- * 1. Client connects via WebSocket
- * 2. Client sends JOIN_LOBBY with player name
- * 3. Server sends back lobby state and player ID
- * 4. Client continuously sends PLAYER_POSITION updates
- * 5. Server broadcasts LOBBY_STATE with all game entities
- * 6. Client renders received state
+ * Production-ready: proper reconnection, event handling, and logging.
  */
 
-import { MESSAGE_TYPES } from '../shared/constants.js';
+const { NETWORK_MESSAGES, GAME_CONSTANTS } = window.GAME_TYPES || {};
 
-export class NetworkManager {
-  constructor(serverUrl = 'http://localhost:3000') {
+class NetworkManager {
+  constructor(serverUrl = null) {
+    // Auto-detect server URL
+    if (!serverUrl) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname || 'localhost';
+      const port = window.location.port || '3000';
+      serverUrl = `${protocol}//${host}:${port}`;
+    }
+
     this.serverUrl = serverUrl;
     this.socket = null;
     this.playerId = null;
-    this.lobbyId = null;
+    this.lobbyCode = null;
     this.isConnected = false;
-    this.messageQueue = [];
+    this.isReady = false;
+
+    // Rate limiting
     this.lastMessageTime = {};
+    this.messageRateLimits = {
+      player_input: 1000 / 60, // 60 Hz
+      broadcast_timer: 2000, // Every 2s
+    };
+
+    // Callbacks
+    this.callbacks = {};
   }
 
   /**
-   * Connect to server and set up event handlers
+   * Connect to server via Socket.IO
    */
-  async connect(playerName = 'Player') {
+  connect(username = 'Player') {
     return new Promise((resolve, reject) => {
-      // Dynamically import Socket.IO client
-      const script = document.createElement('script');
-      script.src = 'https://cdn.socket.io/4.5.4/socket.io.min.js';
-      script.onload = () => {
-        this.socket = io(this.serverUrl);
+      try {
+        console.log('[Network] Connecting to server:', this.serverUrl);
+
+        this.socket = io(this.serverUrl, {
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          reconnectionAttempts: 5,
+        });
 
         // Connection events
         this.socket.on('connect', () => {
-          console.log('Connected to server');
+          console.log('[Network] Connected to server (socket:', this.socket.id, ')');
           this.isConnected = true;
 
-          // Send join lobby request
-          this.socket.emit(MESSAGE_TYPES.JOIN_LOBBY, {
-            playerName: playerName,
+          // Request to join lobby
+          this.socket.emit('join_lobby', {
+            username: username,
           });
         });
 
         this.socket.on('disconnect', () => {
-          console.log('Disconnected from server');
+          console.log('[Network] Disconnected from server');
           this.isConnected = false;
+          this.isReady = false;
+          this._fireCallback('disconnected');
         });
 
-        // Error handling
-        this.socket.on('ERROR', (data) => {
-          console.error('Server error:', data);
-          reject(new Error(data.message));
+        this.socket.on('error', (error) => {
+          console.error('[Network] Socket error:', error);
+          this._fireCallback('error', error);
         });
 
-        // Receive initial lobby state
-        this.socket.on(MESSAGE_TYPES.LOBBY_STATE, (data) => {
-          this.playerId = data.playerId;
-          this.lobbyId = data.lobbyId;
-          console.log('Joined lobby', {
-            playerId: this.playerId,
-            lobbyId: this.lobbyId,
-          });
-          resolve(data);
+        // Server response to join lobby
+        this.socket.on('join_lobby_response', (data) => {
+          if (data.success) {
+            this.playerId = data.playerId;
+            this.lobbyCode = data.lobbyCode;
+            this.isReady = true;
+            console.log('[Network] Joined lobby:', this.lobbyCode, 'as player:', this.playerId);
+            this._fireCallback('joined_lobby', data);
+            resolve(data);
+          } else {
+            const err = new Error(data.message || 'Failed to join lobby');
+            console.error('[Network]', err.message);
+            reject(err);
+          }
         });
 
-        this.socket.on('PLAYER_JOINED', (data) => {
-          console.log('Player joined:', data.playerName);
+        // State updates from server
+        this.socket.on('state_update', (data) => {
+          this._fireCallback('state_update', data);
         });
 
-        this.socket.on('PLAYER_LEFT', (data) => {
-          console.log('Player left:', data.playerId);
+        // Match lifecycle
+        this.socket.on('match_start', (data) => {
+          console.log('[Network] Match started');
+          this._fireCallback('match_start', data);
         });
-      };
-      script.onerror = () => reject(new Error('Failed to load Socket.IO'));
-      document.head.appendChild(script);
+
+        this.socket.on('match_end', (data) => {
+          console.log('[Network] Match ended:', data.winners);
+          this._fireCallback('match_end', data);
+        });
+
+        // Player events
+        this.socket.on('player_joined', (data) => {
+          console.log('[Network] Player joined:', data.username);
+          this._fireCallback('player_joined', data);
+        });
+
+        this.socket.on('player_left', (data) => {
+          console.log('[Network] Player left:', data.playerId);
+          this._fireCallback('player_left', data);
+        });
+
+        // Game events
+        this.socket.on('orb_collected', (data) => {
+          this._fireCallback('orb_collected', data);
+        });
+
+        this.socket.on('blink_response', (data) => {
+          this._fireCallback('blink_response', data);
+        });
+
+        // Pairing/Attachment events
+        this.socket.on('attach_request', (data) => {
+          this._fireCallback('attach_request', data);
+        });
+
+        this.socket.on('attach_accepted', (data) => {
+          this._fireCallback('attach_accepted', data);
+        });
+
+        this.socket.on('attach_declined', (data) => {
+          this._fireCallback('attach_declined', data);
+        });
+
+        this.socket.on('player_detached', (data) => {
+          this._fireCallback('player_detached', data);
+        });
+
+        this.socket.on('timer_broadcast', (data) => {
+          this._fireCallback('timer_broadcast', data);
+        });
+
+        // Error messages
+        this.socket.on('error', (data) => {
+          console.error('[Network] Server error:', data.message);
+          this._fireCallback('server_error', data);
+        });
+
+      } catch (error) {
+        console.error('[Network] Connection failed:', error);
+        reject(error);
+      }
     });
   }
 
   /**
-   * Send player position and rotation update
-   * Rate-limited to prevent flooding server
+   * Send player input (position, rotation, gaze) - rate limited
    */
-  sendPlayerUpdate(position, rotation, gaze) {
-    if (!this.isConnected) return;
+  sendPlayerInput(position, rotation, gaze) {
+    if (!this.isReady) return;
 
-    // Rate limit: max 30 updates per second
     const now = Date.now();
-    const lastSend = this.lastMessageTime['position'] || 0;
-    if (now - lastSend < 1000 / 30) return;
+    const lastSend = this.lastMessageTime['player_input'] || 0;
+    const limit = this.messageRateLimits['player_input'];
 
-    this.socket.emit(MESSAGE_TYPES.PLAYER_POSITION, {
+    if (now - lastSend < limit) return;
+
+    this.socket.emit('player_input', {
       position,
       rotation,
       gaze,
     });
 
-    this.lastMessageTime['position'] = now;
+    this.lastMessageTime['player_input'] = now;
   }
 
   /**
-   * Send blink action
+   * Send blink action (player presses R key)
    */
   sendBlink() {
-    if (!this.isConnected) return;
-    this.socket.emit(MESSAGE_TYPES.BLINK_ACTION, {});
+    if (!this.isReady) return;
+    this.socket.emit('blink_action', {});
   }
 
   /**
-   * Send orb collection
+   * Send orb collection (player collects orb with left-click)
    */
   sendCollectOrb(orbId) {
-    if (!this.isConnected) return;
-    this.socket.emit(MESSAGE_TYPES.COLLECT_ORB, { orbId });
+    if (!this.isReady) return;
+    this.socket.emit('collect_orb', { orbId });
   }
 
   /**
-   * Request attachment with another player
+   * Request attachment with another player (point + V)
    */
   sendAttachRequest(targetPlayerId) {
-    if (!this.isConnected) return;
-    this.socket.emit(MESSAGE_TYPES.ATTACH_REQUEST, {
-      targetPlayerId,
-    });
+    if (!this.isReady) return;
+    this.socket.emit('attach_request', { targetPlayerId });
   }
 
   /**
-   * Accept attachment request
+   * Accept or decline attachment request (V or X)
    */
   sendAttachResponse(fromPlayerId, accepted) {
-    if (!this.isConnected) return;
-    this.socket.emit(MESSAGE_TYPES.ATTACH_RESPONSE, {
-      from: fromPlayerId,
+    if (!this.isReady) return;
+    this.socket.emit('attach_response', {
+      fromPlayerId,
       accepted,
     });
   }
 
   /**
-   * Detach from attached player
+   * Detach from attached player (U twice in 0.5s)
    */
   sendDetach() {
-    if (!this.isConnected) return;
-    this.socket.emit(MESSAGE_TYPES.DETACH, {});
+    if (!this.isReady) return;
+    this.socket.emit('detach', {});
   }
 
   /**
-   * Broadcast blink timer to nearby players
+   * Broadcast blink timer to nearby pairs (I key) - rate limited
    */
-  sendBlinkTimerBroadcast() {
-    if (!this.isConnected) return;
-    this.socket.emit(MESSAGE_TYPES.BLINK_TIMER_BROADCAST, {});
+  sendBroadcastTimer() {
+    if (!this.isReady) return;
+
+    const now = Date.now();
+    const lastSend = this.lastMessageTime['broadcast_timer'] || 0;
+    const limit = this.messageRateLimits['broadcast_timer'];
+
+    if (now - lastSend < limit) return;
+
+    this.socket.emit('broadcast_timer', {});
+    this.lastMessageTime['broadcast_timer'] = now;
   }
 
   /**
-   * Register event listener for receiving updates
+   * Register callback for network events
    */
-  on(eventType, callback) {
-    if (this.socket) {
-      this.socket.on(eventType, callback);
+  on(eventName, callback) {
+    if (!this.callbacks[eventName]) {
+      this.callbacks[eventName] = [];
+    }
+    this.callbacks[eventName].push(callback);
+  }
+
+  /**
+   * Unregister callback
+   */
+  off(eventName, callback) {
+    if (this.callbacks[eventName]) {
+      this.callbacks[eventName] = this.callbacks[eventName].filter(cb => cb !== callback);
     }
   }
 
   /**
-   * Remove event listener
+   * Fire all callbacks for an event
    */
-  off(eventType, callback) {
-    if (this.socket) {
-      this.socket.off(eventType, callback);
+  _fireCallback(eventName, data = null) {
+    if (this.callbacks[eventName]) {
+      for (const callback of this.callbacks[eventName]) {
+        try {
+          callback(data);
+        } catch (error) {
+          console.error('[Network] Callback error:', error);
+        }
+      }
     }
   }
 
   /**
-   * Check if connected to server
+   * Check if ready to send/receive
    */
   isReady() {
-    return this.isConnected && this.playerId !== null;
+    return this.isConnected && this.isReady && this.playerId !== null;
+  }
+
+  /**
+   * Disconnect from server
+   */
+  disconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.isConnected = false;
+      this.isReady = false;
+    }
   }
 }
+
+// Export for global use
+window.NetworkManager = NetworkManager;
