@@ -289,11 +289,13 @@ class GameState {
    * Spawn a single obstacle
    */
   spawnObstacle(obstacleId, position, size) {
+    const height = size.h || Math.max(4, Math.floor((size.w + size.d) / 3));
     this.obstacles.set(obstacleId, {
       id: obstacleId,
       position: { x: position.x, y: position.y || 0, z: position.z },
       width: size.w,
       depth: size.d,
+      height,
     });
   }
 
@@ -301,15 +303,30 @@ class GameState {
    * Spawn random obstacles inside the safe zone
    */
   spawnRandomObstacles(count) {
-    for (let i = 0; i < count; i++) {
-      const obstacleId = `obs_${Date.now()}_${i}`;
-      const angle = Math.random() * Math.PI * 2;
-      const distance = Math.random() * (this.arenaSafeRadius * 0.8);
-      const x = this.centerX + Math.cos(angle) * distance;
-      const z = this.centerZ + Math.sin(angle) * distance;
-      const w = 4 + Math.floor(Math.random() * 8); // width between 4..11
-      const d = 4 + Math.floor(Math.random() * 8); // depth between 4..11
-      this.spawnObstacle(obstacleId, { x, y: 0, z }, { w, d });
+    // Create clustered obstacles closer to center so they appear inside shrinking arena
+    const clusterCount = Math.max(2, Math.floor(count / 4));
+    const perCluster = Math.ceil(count / clusterCount);
+    for (let c = 0; c < clusterCount; c++) {
+      // cluster center within 40% of safe radius
+      const clusterAngle = Math.random() * Math.PI * 2;
+      const clusterDist = Math.random() * (this.arenaSafeRadius * 0.4);
+      const cx = this.centerX + Math.cos(clusterAngle) * clusterDist;
+      const cz = this.centerZ + Math.sin(clusterAngle) * clusterDist;
+
+      for (let i = 0; i < perCluster; i++) {
+        const idx = c * perCluster + i;
+        if (idx >= count) break;
+        const obstacleId = `obs_${Date.now()}_${c}_${i}`;
+        // place near cluster center within small jitter
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * (this.arenaSafeRadius * 0.12); // tight cluster
+        const x = cx + Math.cos(angle) * distance;
+        const z = cz + Math.sin(angle) * distance;
+        const w = 4 + Math.floor(Math.random() * 6); // width between 4..9
+        const d = 4 + Math.floor(Math.random() * 6); // depth between 4..9
+        const h = 4 + Math.floor(Math.random() * 6); // height between 4..9
+        this.spawnObstacle(obstacleId, { x, y: 0, z }, { w, d, h });
+      }
     }
   }
 

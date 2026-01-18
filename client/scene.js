@@ -147,8 +147,8 @@ class GameScene {
       serverIds.add(obs.id);
 
       let mesh = this.obstacleMeshes.get(obs.id);
+      const height = obs.height || Math.max(4, Math.floor((obs.width + obs.depth) / 3));
       if (!mesh) {
-        const height = 6 + Math.max(2, Math.min(12, Math.floor((obs.width + obs.depth) / 2)));
         const geom = new THREE.BoxGeometry(obs.width, height, obs.depth);
         const mat = new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 0.8 });
         mesh = new THREE.Mesh(geom, mat);
@@ -156,10 +156,16 @@ class GameScene {
         mesh.receiveShadow = true;
         this.obstacleMeshes.set(obs.id, mesh);
         this.obstaclesGroup.add(mesh);
+      } else {
+        // update geometry if size changed
+        const params = mesh.geometry.parameters || {};
+        if (params.width !== obs.width || params.depth !== obs.depth || params.height !== height) {
+          mesh.geometry.dispose();
+          mesh.geometry = new THREE.BoxGeometry(obs.width, height, obs.depth);
+        }
       }
 
-      const h = mesh.geometry.parameters ? (mesh.geometry.parameters.height || mesh.geometry.parameters.depth || 6) : 6;
-      mesh.position.set(obs.position.x, (h / 2) + 0.01, obs.position.z);
+      mesh.position.set(obs.position.x, (height / 2) + 0.01, obs.position.z);
     }
 
     // Remove meshes no longer present on server
