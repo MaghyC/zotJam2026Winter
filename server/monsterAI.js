@@ -258,17 +258,27 @@ class MonsterAI {
    * Find spawn position in blind spot of target player
    */
   findMonsterSpawnPosition(player) {
-    // Spawn 20 units behind player
-    const spawnDistance = 20;
-    const spawnX = player.position.x - (player.gaze.x || 0) * spawnDistance;
-    const spawnZ = player.position.z - (player.gaze.z || 1) * spawnDistance;
+    if (!player || !player.position) {
+      logger.warn('findMonsterSpawnPosition: player or position is undefined');
+      return { x: 0, y: 1, z: 0 };
+    }
 
-    return {
-      x: spawnX,
-      y: 1,
-      z: spawnZ,
-    };
+    const spawnDistance = 20;
+
+    // ensure gaze is defined and valid
+    const gazeX = typeof player.gaze?.x === 'number' && !isNaN(player.gaze.x) ? player.gaze.x : 0;
+    const gazeZ = typeof player.gaze?.z === 'number' && !isNaN(player.gaze.z) ? player.gaze.z : 1;
+
+    // ensure position values are valid
+    const posX = typeof player.position.x === 'number' && !isNaN(player.position.x) ? player.position.x : 0;
+    const posZ = typeof player.position.z === 'number' && !isNaN(player.position.z) ? player.position.z : 0;
+
+    const spawnX = posX - gazeX * spawnDistance;
+    const spawnZ = posZ - gazeZ * spawnDistance;
+
+    return { x: spawnX, y: 1, z: spawnZ };
   }
+
 
   /**
    * Move monster toward a position
@@ -306,11 +316,12 @@ class MonsterAI {
    * Monster attacks a player
    */
   attackPlayer(monster, player) {
-    const damage = CONFIG.MONSTERATTACKDAMAGEPERCENT * CONFIG.PLAYERMAXHEALTH;
+    const damage = CONFIG.MONSTER_ATTACK_DAMAGE || 10; // Fallback to 10 if not defined
 
     const newHealth = this.gameState.damagePlayer(player.id, damage);
-
-    logger.info(`Monster ${monster.id} attacked player ${player.id} (damage: ${damage.toFixed(1)}, health: ${newHealth.toFixed(1)})`);
+    if (typeof newHealth === 'number') {
+      logger.info(`Monster ${monster.id} attacked player ${player.id} (damage: ${damage.toFixed(1)}, health: ${newHealth.toFixed(1)})`);
+    }
   }
 
   /**
@@ -345,6 +356,13 @@ class MonsterAI {
   spawnMonster(targetPlayer) {
     const spawnPos = this.findMonsterSpawnPosition(targetPlayer);
     const monsterId = `monster_${this.gameState.lobbyId}_${this.monsterIdCounter++}`;
+
+    // Validate spawn position
+    if (isNaN(spawnPos.x) || isNaN(spawnPos.z)) {
+      logger.warn(`Invalid spawn position for monster ${monsterId}: (${spawnPos.x}, ${spawnPos.z}), using (0, 0)`);
+      spawnPos.x = 0;
+      spawnPos.z = 0;
+    }
 
     this.gameState.spawnMonster(monsterId, spawnPos, 'hunter');
 

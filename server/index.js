@@ -139,7 +139,7 @@ function updateAllLobbies(deltaTime) {
  */
 function broadcastAllLobbies() {
   for (const [, gameState] of lobbyManager.getAllLobbies()) {
-    if (!gameState.active) continue;
+    // Broadcast for both lobby phase (inactive) and game phase (active)
     broadcastLobbyState(gameState);
   }
 }
@@ -160,6 +160,9 @@ function broadcastLobbyState(gameState) {
     score: p.score,
     state: p.state,
     attachedTo: p.attachedTo,
+    ready: p.ready,
+    attachmentState: p.attachmentState,
+
   }));
 
   const monsters = Array.from(gameState.monsters.values()).map(m => ({
@@ -183,6 +186,7 @@ function broadcastLobbyState(gameState) {
     orbs,
     arenaSafeRadius: gameState.arenaSafeRadius,
     matchTime: gameState.getMatchElapsedTime() / 1000, // seconds
+    active: gameState.active, // Include whether game is active or in lobby
   };
 
   io.to(gameState.lobbyId).emit('state_update', payload);
@@ -364,12 +368,10 @@ io.on('connection', (socket) => {
     const gameState = lobbyManager.getLobby(lobbyId);
     if (!gameState || !gameState.active) return;
 
-    const canBlink = gameState.canBlink(playerId);
-    if (canBlink) {
-      gameState.executeBlink(playerId, CONFIG.PLAYERBLINKMAXTIME / 1000);
-      socket.to(lobbyId).emit("blink_action", { playerId });
-      socket.emit("blink_response", { success: true });
-    }
+    gameState.executeBlink(playerId, CONFIG.PLAYER_BLINK_MAX_TIME / 1000);
+    socket.to(lobbyId).emit("blink_action", { playerId });
+    socket.emit("blink_response", { success: true });
+
   });
 
   /**
@@ -447,6 +449,37 @@ io.on('connection', (socket) => {
   });
 
   /**
+   * set_ready - Player sets their ready status
+   */
+  socket.on('set_ready', (data) => {
+    if (!lobbyId) return;
+
+    const gameState = lobbyManager.getLobby(lobbyId);
+    if (!gameState || gameState.active) return; // Can't ready up after game starts
+
+    // Require at least 2 players to start
+    if (gameState.players.size < 2) {
+      socket.emit('game_message', {
+        message: 'Need at least 2 players to start',
+        type: 'warning'
+      });
+      return;
+    }
+
+    gameState.setPlayerReady(playerId, data.ready || false);
+    logger.debug(`Player ${playerId} ready status: ${data.ready}`);
+
+    // Check if all players are ready and auto-start if so
+    if (gameState.areAllPlayersReady() && gameState.players.size >= 2) {
+      logger.info(`Lobby ${lobbyId}: All players ready! Starting match...`);
+      gameState.startMatch();
+      io.to(lobbyId).emit('match_started', {
+        message: 'All players ready! Match starting now!',
+      });
+    }
+  });
+
+  /**
    * broadcast_timer - Player broadcasts their blink timer to nearby pairs
    */
   socket.on('broadcast_timer', (data) => {
@@ -456,7 +489,8 @@ io.on('connection', (socket) => {
     if (!gameState) return;
 
     const nearby = gameState.getNearbyPlayers(playerId, CONFIG.PAIR_BROADCAST_RANGE);
-    const remaining = gameState.getBlinkCooldownRemaining(playerId);
+    const remainingMs = CONFIG.PLAYER_BLINK_MAX_TIME - (Date.now() - gameState.getPlayer(playerId).lastAutoBlinkTime);
+    let remaining = remainingMs / 1000;
 
     for (const nearbyPlayer of nearby) {
       io.to(nearbyPlayer.id).emit('timer_broadcast', {
@@ -629,13 +663,44 @@ httpServer.listen(PORT, HOST, () => {
   logger.info(`Waiting for players...`);
 });
 
-process.on('SIGINT', () => {
-  logger.info('Shutting down...');
+// 已有的变量：io, httpServer, stopGameLoop, logger
+
+let isShuttingDown = false;
+
+process.on('SIGINT', async () => {
+  if (isShuttingDown) return;   // 防止重复进入
+  isShuttingDown = true;
+
+  logger.info('Shutting down......');
   stopGameLoop();
-  httpServer.close(() => {
-    logger.info('Server stopped');
+  logger.info('Game loop stopped.');
+
+  try {
+    // 2. 主动断开所有 Socket.IO 客户端
+    await new Promise((resolve) => {
+      io.close(() => {
+        logger.info('All Socket.IO clients disconnected');
+        resolve();
+      });
+    });
+
+    await new Promise((resolve) => {
+      httpServer.close(() => {
+        logger.info('HTTP server closed');
+        resolve();
+      });
+    });
+
+
+    logger.info('Server stopped cleanly');
     process.exit(0);
-  });
+  } catch (err) {
+    logger.error('Error during shutdown', { err });
+    // 避免挂死，出错也强制退出
+    process.exit(1);
+  }
 });
+
+
 
 module.exports = { io, lobbyManager, monsterAIByLobby };

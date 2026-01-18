@@ -5,11 +5,14 @@
  * Implements all keybindings for movement, blink, attachment, and broadcasts.
  */
 
+const CONFIG = (window.GAMETYPES && window.GAMETYPES.GAMECONSTANTS) || {};
+
 class PlayerController {
   // TOP OF CLASS (after constructor fields)
-  constructor(scene, network) {
+  constructor(scene, network, ui) {
     this.scene = scene;
     this.network = network;
+    this.ui = ui; // to be set externally
 
     // Local player state
     this.position = { x: 0, y: 1, z: 0 };
@@ -33,6 +36,10 @@ class PlayerController {
     // Detach double-press tracking
     this.lastUPressTime = 0;
     this.detachPressCount = 0;
+
+    // Attachment state (local tracking)
+    this.attachRequest = null; // { from, to, state }
+    this.targetedPlayer = null; // Player currently being pointed at
 
     // Setup event listeners
     this.setupInputListeners();
@@ -67,7 +74,7 @@ class PlayerController {
 
     // Broadcast blink timer to nearby
     if (key === 'i') {
-      this.network.sendBlinkTimerBroadcast();
+      this.network.sendBroadcastTimer();
       return;
     }
   }
@@ -129,7 +136,7 @@ class PlayerController {
       this.network.sendBlinkTimerBroadcast();
     }
 
-    // TODO: Implement O and P signals (orb/monster in direction)
+    // TODO: Implement O and P signals (orb/monster in direction) shows on minimap
     // TODO: Implement N for control request
     // TODO: Implement arrow keys for head turning
   }
@@ -138,17 +145,61 @@ class PlayerController {
    * V key - attachment request or accept
    */
   handleVPress() {
-    // TODO: Implement based on attachment state
-    // If no pending requests, request attachment from nearest player
-    // If pending request, accept it
+    // Find player being pointed at (within 30 unit range, center of screen)
+    const targetPlayer = this.findTargetedPlayer();
+
+    if (targetPlayer) {
+      // Request attachment with this player
+      this.network.sendAttachRequest(targetPlayer.id);
+      console.log('[PlayerController] Sent attach request to:', targetPlayer.username);
+    }
   }
 
   /**
    * X key - decline attachment or cancel request
    */
   handleXPress() {
-    // TODO: Implement
-    // Decline pending attachment request or cancel outgoing request
+    // Cancel pending attachment request
+    if (this.attachRequest) {
+      this.network.sendAttachDecline(this.attachRequest.from);
+      this.attachRequest = null;
+      console.log('[PlayerController] Declined attachment');
+    }
+  }
+
+  /**
+   * Find the player being pointed at (raycasting from center screen)
+   */
+  findTargetedPlayer() {
+    if (!window.gameClient?.gameState?.players) return null;
+
+    const players = window.gameClient.gameState.players || [];
+    const maxDistance = 30; // Can target players within 30 units
+
+    // Find closest player in front
+    let closest = null;
+    let closestDistance = maxDistance;
+
+    for (const p of players) {
+      if (p.id === window.gameClient.network.playerId) continue; // Skip self
+      if (p.state === 'dead') continue; // Skip dead players
+
+      const dx = p.position.x - this.position.x;
+      const dy = p.position.y - this.position.y;
+      const dz = p.position.z - this.position.z;
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      if (distance < closestDistance) {
+        // Check if player is roughly in front (within 90 degree cone)
+        const dot = (dx * this.gaze.x + dz * this.gaze.z) / (Math.sqrt(dx * dx + dz * dz) || 1);
+        if (dot > 0.3) { // cos(72°) ≈ 0.31, so about 72 degree cone
+          closest = p;
+          closestDistance = distance;
+        }
+      }
+    }
+
+    return closest;
   }
 
   /**
@@ -183,6 +234,16 @@ class PlayerController {
  */
   update(deltaTime) {
     const now = Date.now();
+
+    const remainingMs = CONFIG.PLAYER_BLINK_MAX_TIME - (now - this.lastAutoBlinkTime);
+    let remaining = remainingMs / 1000;
+    if (!Number.isFinite(remaining) || remaining < 0) remaining = 0;
+
+    // playerController.update 中
+    if (this.ui && typeof this.ui.updateBlinkTimer === 'function') {
+      this.ui.updateBlinkTimer(remaining);
+    }
+
 
     // Auto blink every 15 seconds if not manually refreshed
     if (now - this.lastAutoBlinkTime >= 15000) {
@@ -232,12 +293,12 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                   * Update player position based on WASD movement
-                                   * W = forward (toward gaze)
-                                   * S = backward
-                                   * A = 90° left of gaze
-                                   * D = 90° right of gaze
-                                   */
+                                              * Update player position based on WASD movement
+                                              * W = forward (toward gaze)
+                                              * S = backward
+                                              * A = 90° left of gaze
+                                              * D = 90° right of gaze
+                                              */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
 
@@ -423,3 +484,4 @@ class PlayerController {
     };
   }
 }
+window.PlayerController = PlayerController;

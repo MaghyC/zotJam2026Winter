@@ -262,6 +262,17 @@ class NetworkManager {
   }
 
   /**
+   * Decline an attachment request (X key)
+   */
+  sendAttachDecline(fromPlayerId) {
+    if (!this.isReady) return;
+    this.socket.emit('attach_response', {
+      fromPlayerId,
+      accepted: false,
+    });
+  }
+
+  /**
    * Detach from attached player (U twice in 0.5s)
    */
   sendDetach() {
@@ -283,6 +294,15 @@ class NetworkManager {
 
     this.socket.emit('broadcast_timer', {});
     this.lastMessageTime['broadcast_timer'] = now;
+  }
+
+  /**
+   * Send ready status to server
+   */
+  sendReady(ready) {
+    if (!this.isReady) return;
+    this.socket.emit('set_ready', { ready });
+    console.log('[Network] Sent ready status:', ready);
   }
 
   /**

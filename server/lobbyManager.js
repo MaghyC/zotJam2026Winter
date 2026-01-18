@@ -153,7 +153,7 @@ class LobbyManager {
       logger.warn(`Cannot start: not enough players in lobby ${lobbyId}`);
       return false;
     }
-
+    gameState.resetForNewMatch();
     gameState.startMatch();
 
     // Spawn initial orbs

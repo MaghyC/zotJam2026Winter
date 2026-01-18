@@ -24,6 +24,9 @@ class GameClient {
 
     // Track collected orbs to avoid duplicate collection attempts
     this.collectedOrbIds = new Set();
+
+    // Current attach request pending
+    this.currentAttachRequest = null;
   }
 
   /**
@@ -153,6 +156,33 @@ class GameClient {
       this.ui = new UIManager();
       this.ui.showMessage('Connecting to server...', 'normal');
 
+      // Setup ready button handler
+      document.getElementById('readyBtn').addEventListener('click', () => {
+        this.ui.isPlayerReady = !this.ui.isPlayerReady;
+        this.network.sendReady(this.ui.isPlayerReady);
+      });
+
+      // Setup attach accept button
+      document.getElementById('attachAcceptBtn').addEventListener('click', () => {
+        if (this.currentAttachRequest) {
+          this.network.sendAttachResponse(this.currentAttachRequest, true);
+          this.ui.hideAttachRequest();
+        }
+      });
+
+      // Setup attach decline button
+      document.getElementById('attachDeclineBtn').addEventListener('click', () => {
+        if (this.currentAttachRequest) {
+          this.network.sendAttachResponse(this.currentAttachRequest, false);
+          this.ui.hideAttachRequest();
+        }
+      });
+
+      // Setup restart button handler
+      document.getElementById('restartBtn').addEventListener('click', () => {
+        this.restart();
+      });
+
       // Connect to server with username and playerId if reconnecting
       this.network = new NetworkManager();
 
@@ -183,7 +213,7 @@ class GameClient {
       window.gameScene = this.scene;
 
       // Initialize player controller
-      this.controller = new PlayerController(this.scene, this.network);
+      this.controller = new PlayerController(this.scene, this.network, this.ui);
 
       // Hide loading screen and show game
       loadingScreen.classList.remove('show');
@@ -227,6 +257,10 @@ class GameClient {
       this.ui.showMessage('A player left', 'warning');
     });
 
+    this.network.on('game_message', (data) => {
+      this.ui.showMessage(data.message, data.type || 'normal');
+    });
+
     this.network.on('orb_collected', (data) => {
       if (data.playerId === this.network.playerId) {
         this.ui.showMessage(`+${data.points} pts`, 'normal');
@@ -238,6 +272,35 @@ class GameClient {
         const remaining = data.cooldownRemaining || 0;
         this.ui.showMessage(`Blink on cooldown: ${remaining.toFixed(1)}s`, 'warning');
       }
+    });
+
+    // Attach request received from another player
+    this.network.on('attach_request', (data) => {
+      const requester = (this.gameState?.players || []).find(p => p.id === data.fromPlayerId);
+      if (requester) {
+        this.ui.showAttachRequest(requester.username, data.fromPlayerId);
+        this.currentAttachRequest = data.fromPlayerId;
+      }
+    });
+
+    // Attach request accepted
+    this.network.on('attach_accepted', (data) => {
+      this.ui.showMessage('🤝 Attached!', 'normal');
+      this.ui.hideAttachRequest();
+    });
+
+    // Attach request declined
+    this.network.on('attach_declined', (data) => {
+      this.ui.showMessage('❌ Attachment declined', 'warning');
+      this.ui.hideAttachRequest();
+    });
+
+    // Blink timer broadcast from nearby players
+    this.network.on('timer_broadcast', (data) => {
+      if (data.fromPlayerId === this.network.playerId) return; // Skip self
+      const player = (this.gameState?.players || []).find(p => p.id === data.fromPlayerId);
+      const playerName = player?.username || 'Unknown';
+      this.ui.showMessage(`⏱️ ${playerName}: ${data.timerRemaining.toFixed(1)}s`, 'normal');
     });
 
     this.network.on('attach_request', (data) => {
@@ -285,6 +348,14 @@ class GameClient {
       this.localPlayer = data.players.find(p => p.id === this.network.playerId);
     }
 
+    // Show/hide ready panel based on match active state
+    if (!data.active) {
+      this.ui.showReadyPanel();
+      this.ui.updateReadyPanel(data.players || [], this.network.playerId);
+    } else {
+      this.ui.hideReadyPanel();
+    }
+
     // Clean up collected orbs set (remove orbs that are no longer in the game)
     const activeOrbIds = new Set((data.orbs || []).map(o => o.id));
     for (const orbId of this.collectedOrbIds) {
@@ -309,9 +380,14 @@ class GameClient {
       this.ui.updateHUD(this.localPlayer, data);
 
       // Calculate blink timer remaining
-      const now = Date.now();
-      const timeUntilBlink = Math.max(0, (this.localPlayer.blinkCooldownEnd - now) / 1000);
-      this.ui.updateBlinkTimer(timeUntilBlink);
+
+      let remaining = this.localPlayer?.blinkCooldownRemaining || 0;
+
+      if (!Number.isFinite(remaining)) {
+        remaining = 0;
+      }
+
+      this.ui.updateBlinkTimer(remaining);
 
       // Draw minimap
       this.ui.drawMinimap(this.localPlayer, data, 100);
@@ -354,6 +430,36 @@ class GameClient {
     console.log('[Main] Match ended:', results);
     this.ui.showMatchEnd(results);
     this.stopRenderLoop();
+  }
+
+  /**
+   * Restart game - disconnect and create a new session
+   */
+  restart() {
+    console.log('[Main] Restarting game...');
+
+    // Disconnect from current lobby
+    if (this.network) {
+      this.network.disconnect();
+    }
+
+    // Stop any running loops
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+
+    // Reset game state
+    this.localPlayer = null;
+    this.gameState = null;
+    this.collectedOrbIds.clear();
+    this.currentAttachRequest = null;
+
+    // Create new player session with new identity (reset playerId to force new lobby)
+    this.playerId = null;
+    this.savePlayerSession();
+
+    // Reload the page to start fresh
+    location.reload();
   }
 
   /**

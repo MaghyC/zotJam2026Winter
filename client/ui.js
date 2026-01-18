@@ -20,11 +20,20 @@ class UIManager {
       minimap: document.getElementById('minimap'),
       messages: document.getElementById('messages'),
       matchEndScreen: document.getElementById('matchEndScreen'),
+      readyPanel: document.getElementById('readyPanel'),
+      readyBtn: document.getElementById('readyBtn'),
+      readyCount: document.getElementById('readyCount'),
+      attachNotification: document.getElementById('attachNotification'),
+      attachNotificationText: document.getElementById('attachNotificationText'),
+      attachAcceptBtn: document.getElementById('attachAcceptBtn'),
+      attachDeclineBtn: document.getElementById('attachDeclineBtn'),
     };
 
     this.minimapCtx = this.elements.minimap.getContext('2d');
     this.minimapWidth = this.elements.minimap.width;
     this.minimapHeight = this.elements.minimap.height;
+
+    this.isPlayerReady = false;
   }
 
   /**
@@ -35,7 +44,64 @@ class UIManager {
   }
 
   /**
-   * Update HUD with player stats
+   * Show ready panel (in lobby waiting for match start)
+   */
+  showReadyPanel() {
+    this.elements.readyPanel.classList.add('show');
+  }
+
+  /**
+   * Hide ready panel (match has started)
+   */
+  hideReadyPanel() {
+    this.elements.readyPanel.classList.remove('show');
+  }
+
+  /**
+   * Update ready panel with player count and states
+   */
+  updateReadyPanel(players, localPlayerId) {
+    if (!players || players.length === 0) return;
+
+    const readyCount = players.filter(p => p.ready).length;
+    this.elements.readyCount.textContent = `${readyCount}/${players.length} Ready`;
+
+    const allReady = readyCount === players.length && players.length > 1;
+    if (allReady) {
+      this.elements.readyPanel.classList.add('active');
+    } else {
+      this.elements.readyPanel.classList.remove('active');
+    }
+
+    const localPlayer = players.find(p => p.id === localPlayerId);
+    if (localPlayer?.ready) {
+      this.elements.readyBtn.classList.add('ready');
+      this.elements.readyBtn.textContent = 'READY ✓';
+    } else {
+      this.elements.readyBtn.classList.remove('ready');
+      this.elements.readyBtn.textContent = 'READY';
+    }
+  }
+
+  /**
+   * Show attach request notification
+   */
+  showAttachRequest(fromPlayerName, fromPlayerId) {
+    this.elements.attachNotificationText.textContent = `${fromPlayerName} wants to attach!`;
+    this.elements.attachNotification.classList.add('show');
+    this.attachRequestData = { fromPlayerName, fromPlayerId };
+  }
+
+  /**
+   * Hide attach request notification
+   */
+  hideAttachRequest() {
+    this.elements.attachNotification.classList.remove('show');
+    this.attachRequestData = null;
+  }
+
+  /**
+   * Hide loading screen
    */
   updateHUD(player, gameState) {
     if (!player) return;
@@ -45,10 +111,9 @@ class UIManager {
     this.elements.hudHealth.style.color = player.health < 30 ? '#ff0000' : '#ffff00';
 
     this.elements.hudScore.textContent = player.score || 0;
-    this.elements.hudOrbs.textContent = player.orbsCollected || 0;
 
     const playerCount = gameState?.players?.length || 0;
-    console.log('[UI] Updating player count display:', playerCount, 'gameState.players:', gameState?.players);
+    //console.log('[UI] Updating player count display:', playerCount, 'gameState.players:', gameState?.players);
     this.elements.hudPlayers.textContent = `${playerCount}/8`;
 
     const monsterCount = gameState?.monsters?.length || 0;
@@ -67,10 +132,9 @@ class UIManager {
   updateBlinkTimer(secondsRemaining) {
     if (secondsRemaining > 0) {
       this.elements.blinkTimerPanel.style.display = 'flex';
-      this.elements.blinkTimerValue.textContent = secondsRemaining.toFixed(1);
 
-      const percent = secondsRemaining / 20;
       let color;
+      const percent = maxTime > 0 ? timerRemaining / maxTime : 0;
       if (percent > 0.6) {
         color = '#00ff00';
       } else if (percent > 0.3) {

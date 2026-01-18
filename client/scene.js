@@ -169,7 +169,17 @@ class GameScene {
     const serverIds = new Set();
     const localPlayerId = window.gameClient?.network?.playerId;
 
+    //onsole.log(`[Scene.updatePlayers] Received ${players?.length || 0} players, localPlayerId=${localPlayerId}`);
+
     for (const player of players) {
+      //console.log(`[Scene.updatePlayers] Player: id=${player.id}, state=${player.state}, alive=${player.state === 'alive'}`);
+
+      // Skip dead players - don't render them
+      if (player.state === 'dead') {
+        //console.log(`[Scene.updatePlayers] Skipping dead player ${player.id}`);
+        continue;
+      }
+
       serverIds.add(player.id);
 
       // Skip rendering local player (first-person view)
@@ -180,26 +190,44 @@ class GameScene {
       let mesh = this.playerMeshes.get(player.id);
       if (!mesh) {
         // Create new player mesh for OTHER players
-        const geom = new THREE.BoxGeometry(1, 2, 1, 1, 1, 1);
+        const geom = new THREE.BoxGeometry(0.9, 1.8, 2.2);
         const mat = new THREE.MeshStandardMaterial({
           color: player.attachmentState === 'ATTACHED' ? 0x00ff00 : 0x0066ff,
           metalness: 0.3,
           roughness: 0.6,
           emissive: player.attachmentState === 'ATTACHED' ? 0x00aa00 : 0x0044aa
         });
+
         mesh = new THREE.Mesh(geom, mat);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        // Add simple gaze indicator (a small box in front of "head")
+        const gazeGeom = new THREE.BoxGeometry(0.1, 0.1, 1.0); // thin rectangular box
+        const gazeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const gazeMesh = new THREE.Mesh(gazeGeom, gazeMat);
+        gazeMesh.position.set(0, 0.9, 1.5);
+        gazeMesh.name = "gazeIndicator";
+        mesh.add(gazeMesh);
+
+
         this.scene.add(mesh);
         this.playerMeshes.set(player.id, mesh);
-        console.log('[Scene] Created mesh for player:', player.id, player.username);
+        //console.log('[Scene] Created mesh for player:', player.id, player.username);
       }
 
       // Update position and rotation
       mesh.position.set(player.position.x, player.position.y, player.position.z);
+
       if (player.rotation) {
-        mesh.rotation.copy(player.rotation);
+        // Use explicit Euler components and a valid order
+        mesh.rotation.set(
+          player.rotation.x || 0,
+          player.rotation.y || 0,
+          player.rotation.z || 0,
+          "YXZ"   // or "XYZ", but match your camera order
+        );
       }
+
 
       // Update color based on attachment state
       if (mesh.material) {
@@ -209,11 +237,12 @@ class GameScene {
       }
     }
 
-    // Remove meshes for players no longer in game
+    // Remove meshes for players no longer in game or dead
     for (const [id, mesh] of this.playerMeshes.entries()) {
       if (!serverIds.has(id)) {
         this.scene.remove(mesh);
         this.playerMeshes.delete(id);
+        console.log('[Scene] Removed mesh for player:', id);
       }
     }
   }

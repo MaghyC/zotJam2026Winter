@@ -79,11 +79,11 @@
 
     /* Blink Timer - Large Display */
     #blinkTimerPanel {
-      top: 50%;
+      top: 65%;
       left: 50%;
       transform: translate(-50%, -50%);
-      width: 150px;
-      height: 150px;
+      width: 120px;
+      height: 120px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -93,7 +93,7 @@
     }
 
     #blinkTimerValue {
-      font-size: 48px;
+      font-size: 32px;
       color: #ff00ff;
       font-weight: bold;
       text-align: center;
@@ -103,16 +103,18 @@
     #minimapPanel {
       bottom: 10px;
       right: 10px;
-      width: 220px;
-      height: 220px;
+      width: 140px;
+      height: 140px;
       padding: 5px;
       border-color: #0099ff;
+      background: rgba(0, 0, 0, 0.5);
+      opacity: 0.65;
     }
 
     #minimap {
       width: 100%;
       height: 100%;
-      background: rgba(0, 20, 50, 0.9);
+      background: rgba(0, 20, 50, 0.5);
     }
 
     /* Messages/Notifications */
@@ -396,6 +398,28 @@
       font-size: 16px;
     }
 
+    .restart-btn {
+      margin-top: 40px;
+      padding: 15px 40px;
+      font-size: 18px;
+      background: linear-gradient(135deg, #ff00ff, #00ffff);
+      color: #000;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .restart-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px #ff00ff;
+    }
+
+    .restart-btn:active {
+      transform: scale(0.95);
+    }
+
     /* Crosshair */
     #crosshair {
       position: fixed;
@@ -467,6 +491,157 @@
       font-weight: bold;
       font-family: 'Courier New', monospace;
     }
+
+    /* Ready Panel - Top right */
+    #readyPanel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 2px solid #ffff00;
+      border-radius: 5px;
+      padding: 15px;
+      text-align: center;
+      min-width: 150px;
+      display: none;
+      z-index: 50;
+    }
+
+    #readyPanel.show {
+      display: block;
+    }
+
+    #readyPanel.active {
+      border-color: #00ff00;
+      background: rgba(0, 20, 0, 0.8);
+    }
+
+    #readyPanel h3 {
+      color: #ffff00;
+      font-size: 14px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    #readyPanel.active h3 {
+      color: #00ff00;
+    }
+
+    #readyCount {
+      font-size: 16px;
+      color: #00ff00;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    #readyBtn {
+      width: 100%;
+      padding: 8px;
+      background: #ffff00;
+      color: #000;
+      border: none;
+      border-radius: 3px;
+      font-weight: bold;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    #readyBtn:hover {
+      background: #ffdd00;
+      box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+    }
+
+    #readyBtn.ready {
+      background: #00ff00;
+      color: #000;
+    }
+
+    #readyBtn.ready:hover {
+      background: #00dd00;
+      box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+
+    #readyBtn:active {
+      transform: scale(0.98);
+    }
+
+    /* Attach Request Notification - Center Top */
+    #attachNotification {
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
+      border: 3px solid #ff00ff;
+      border-radius: 10px;
+      padding: 20px 30px;
+      text-align: center;
+      display: none;
+      z-index: 100;
+      box-shadow: 0 0 20px rgba(255, 0, 255, 0.5);
+    }
+
+    #attachNotification.show {
+      display: block;
+      animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    }
+
+    #attachNotificationText {
+      color: #ffff00;
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+
+    #attachNotificationButtons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .attach-btn {
+      padding: 8px 20px;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      transition: all 0.3s;
+    }
+
+    #attachAcceptBtn {
+      background: #00ff00;
+      color: #000;
+    }
+
+    #attachAcceptBtn:hover {
+      background: #00dd00;
+      box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+
+    #attachDeclineBtn {
+      background: #ff6600;
+      color: #fff;
+    }
+
+    #attachDeclineBtn:hover {
+      background: #ff5500;
+      box-shadow: 0 0 10px rgba(255, 102, 0, 0.5);
+    }
   </style>
 </head>
 
@@ -484,6 +659,22 @@
   <div id="blinkTimerSidebar">
     <div id="blinkTimerSidebarLabel">NEXT BLINK</div>
     <div id="blinkTimerSidebarValue">0.0s</div>
+  </div>
+
+  <!-- Ready Panel -->
+  <div id="readyPanel">
+    <h3>LOBBY</h3>
+    <div id="readyCount">0/8 Ready</div>
+    <button id="readyBtn">READY</button>
+  </div>
+
+  <!-- Attach Request Notification -->
+  <div id="attachNotification">
+    <div id="attachNotificationText">Player wants to attach</div>
+    <div id="attachNotificationButtons">
+      <button class="attach-btn" id="attachAcceptBtn">ACCEPT (V)</button>
+      <button class="attach-btn" id="attachDeclineBtn">DECLINE (X)</button>
+    </div>
   </div>
 
   <!-- Login Screen -->
@@ -516,6 +707,7 @@
     <div class="end-content">
       <h1 id="endTitle">MATCH OVER</h1>
       <div id="endStats"></div>
+      <button id="restartBtn" class="restart-btn">CREATE NEW ROOM</button>
     </div>
   </div>
 
@@ -529,10 +721,7 @@
       <span class="label">Score</span>
       <span class="value" id="hudScore">0</span>
     </div>
-    <div class="hud-line">
-      <span class="label">Orbs</span>
-      <span class="value" id="hudOrbs">0</span>
-    </div>
+
     <div class="hud-line">
       <span class="label">Players</span>
       <span class="value" id="hudPlayers">0/8</span>

@@ -99,7 +99,6 @@ const GAME_CONSTANTS = {
  * @property {number} maxHealth - max health (100)
  * @property {number} score - total orbs collected
  * @property {number} orbsCollected - count of orbs
- * @property {number} blinkCooldownEnd - milliseconds when blink resets
  * @property {string|null} attachedTo - player id if paired, else null
  * @property {string} attachmentState - ALONE | ATTACHED | REQUEST_SENT | REQUEST_RECEIVED
  * @property {number} lastAttackTime - ms of last monster hit
@@ -213,7 +212,6 @@ if (typeof module !== 'undefined' && module.exports) {
  * @property {number} score
  * @property {string} state - from PLAYER_STATES
  * @property {string} attachmentState - from ATTACHMENT_STATES
- * @property {number} blinkCooldownEnd - timestamp when blink is ready
  * 
  * @typedef {Object} Monster
  * @property {string} id - unique monster ID

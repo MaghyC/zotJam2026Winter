@@ -75,6 +75,37 @@ class GameState {
   /**
    * Start the match
    */
+  // Add to GameState class
+  resetForNewMatch() {
+    // Reset arena
+    this.arenaSafeRadius = CONFIG.ARENA_RADIUS;  // Back to 100
+    this.centerX = 0;
+    this.centerZ = 0;
+
+    // Reset all players (keep them, reset stats)
+    for (const player of this.players.values()) {
+      player.score = 0;
+      player.orbsCollected = 0;
+      player.health = CONFIG.PLAYER_MAX_HEALTH;
+      player.state = PLAYER_STATES.ALIVE;
+      player.blinkCooldownEnd = 0;  // Ready to blink
+      // Respawn position
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * 30;
+      player.position = {
+        x: this.centerX + Math.cos(angle) * distance,
+        y: CONFIG.PLAYER_HEIGHT,
+        z: this.centerZ + Math.sin(angle) * distance
+      };
+      player.ready = false;  // Reset ready
+    }
+
+    // Clear game objects
+    this.orbs.clear();
+    this.monsters.clear();
+    this.matchStartTime = null;  // Will be set by startMatch
+  }
+
   startMatch() {
     this.matchStartTime = Date.now();
     this.active = true;
@@ -101,12 +132,12 @@ class GameState {
       maxHealth: CONFIG.PLAYER_MAX_HEALTH,
       score: 0,
       orbsCollected: 0,
-      blinkCooldownEnd: 0,
       lastBlinkTime: 0,
       attachedTo: null,
       attachmentState: ATTACHMENT_STATES.ALONE,
       lastAttackTime: 0,
       lastRegenTime: Date.now(),
+      ready: false, // New: track if player is ready to start
 
       // Spatial state
       position: { x: spawnX, y: CONFIG.PLAYER_HEIGHT, z: spawnZ },
@@ -121,6 +152,9 @@ class GameState {
       // For spectating when dead
       spectatingPlayerId: null,
     });
+
+    const player = this.players.get(playerId);
+    logger.info(`Player ${playerId} health after spawn: ${player.health}`);
   }
 
   /**
@@ -162,6 +196,13 @@ class GameState {
     if (!player) return;
 
     if (player && player.state === PLAYER_STATES.ALIVE) {
+      // Check if player fell out of bounds (below -200)
+      if (position && position.y < -200) {
+        player.state = PLAYER_STATES.DEAD;
+        logger.info(`Player ${playerId} fell out of bounds (y=${position.y}), marked as dead`);
+        return;
+      }
+
       player.position = { ...position };
       player.rotation = { ...rotation };
       // ensure gaze is legal
@@ -187,14 +228,6 @@ class GameState {
     }
   }
 
-  /**
-   * Check if player can blink (cooldown expired)
-   */
-  canBlink(playerId) {
-    const player = this.players.get(playerId);
-    if (!player || player.state !== PLAYER_STATES.ALIVE) return false;
-    return Date.now() >= player.blinkCooldownEnd;
-  }
 
   /**
    * Execute a blink action for player (resets cooldown)
@@ -202,24 +235,13 @@ class GameState {
   executeBlink(playerId, refreshSeconds) {
     const player = this.players.get(playerId);
     if (player) {
-      player.blinkCooldownEnd = Date.now() + (refreshSeconds * 1000);
       player.lastBlinkTime = Date.now();
-      logger.debug(`Player ${playerId} blinked, cooldown: ${refreshSeconds}s`);
+      logger.debug(`Player ${playerId} blinked, refresh: ${refreshSeconds}s`);
       return true;
     }
     return false;
   }
 
-  /**
-   * Get time remaining on blink cooldown (in seconds, 0.1s precision)
-   */
-  getBlinkCooldownRemaining(playerId) {
-    const player = this.players.get(playerId);
-    if (!player) return 0;
-    const remaining = (player.blinkCooldownEnd - Date.now()) / 1000;
-    const clamped = Math.max(0, Math.min(CONFIG.PLAYER_BLINK_MAX_TIME / 1000, remaining));
-    return Math.round(clamped * 10) / 10; // 0.1s precision
-  }
 
   /**
    * Spawn an orb at a specific location
@@ -266,7 +288,7 @@ class GameState {
         player.score += orb.value;
       }
 
-      logger.debug(`Player ${playerId} collected orb ${orbId}`);
+      //logger.debug(`Player ${playerId} collected orb ${orbId}`);
       return orb.value;
     }
     return 0;
@@ -285,19 +307,21 @@ class GameState {
   /**
    * Damage a player from monster attack
    */
-  // gameState.js
   damagePlayer(playerId, damage) {
     const player = this.players.get(playerId);
-    if (player && player.health > 0) {
+    if (!player) return 0;
+
+    if (player.health > 0) {
       player.health = Math.max(0, player.health - damage);
       player.lastAttackTime = Date.now();
-      if (player && player.health <= 0) {
-        player.state = PLAYER_STATES.DEAD;
-        logger.info(`Player ${playerId} died in lobby ${this.lobbyId}`);
-      }
-      return player.health;
     }
-    return 0;
+
+    if (player.health <= 0) {
+      player.state = PLAYER_STATES.DEAD;
+      logger.info(`Player ${playerId} died in lobby ${this.lobbyId}`);
+    }
+
+    return player.health || 0;
   }
 
 
@@ -402,6 +426,34 @@ class GameState {
    */
   getActiveOrbs() {
     return Array.from(this.orbs.values()).filter(o => !o.collected);
+  }
+
+  /**
+   * Set player ready status
+   */
+  setPlayerReady(playerId, ready) {
+    const player = this.players.get(playerId);
+    if (player) {
+      player.ready = ready;
+    }
+  }
+
+  /**
+   * Check if all players in lobby are ready
+   */
+  areAllPlayersReady() {
+    if (this.players.size === 0) return false;
+    for (const player of this.players.values()) {
+      if (!player.ready) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Get players as array
+   */
+  getPlayers() {
+    return Array.from(this.players.values());
   }
 
   /**
