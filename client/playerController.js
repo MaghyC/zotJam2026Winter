@@ -228,6 +228,8 @@ class PlayerController {
       this.isScreenBlack = false;
     }
 
+    console.log('[Controller.update] keys=', this.keys, 'pos=', this.position.x.toFixed(1), this.position.z.toFixed(1));
+
     // Update position based on WASD input
     this.updateMovement(deltaTime);
 
@@ -238,11 +240,8 @@ class PlayerController {
     this.updateGaze();
 
     // Send position update to server (rate-limited by network layer)
-    this.network.sendPlayerInput({
-      position: this.position,
-      rotation: this.rotation,
-      gaze: this.gaze
-    });
+    // Send discrete args to match network.sendPlayerInput signature
+    this.network.sendPlayerInput(this.position, this.rotation, this.gaze);
 
     // Update camera
     if (this.scene) {
@@ -265,12 +264,12 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                                  * Update player position based on WASD movement
-                                                  * W = forward (toward gaze)
-                                                  * S = backward
-                                                  * A = 90° left of gaze
-                                                  * D = 90° right of gaze
-                                                  */
+                                                      * Update player position based on WASD movement
+                                                      * W = forward (toward gaze)
+                                                      * S = backward
+                                                      * A = 90° left of gaze
+                                                      * D = 90° right of gaze
+                                                      */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
     const backwardMultiplier = (CONFIG && CONFIG.PLAYER_BACKWARD_SPEED_MULTIPLIER) || 0.5;
@@ -445,8 +444,9 @@ class PlayerController {
     const dz = position.z - this.position.z;
     const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-    if (distance > 1) {
-      // Large correction from server
+    if (distance > 5) {
+      // Large correction from server (only for major desync)
+      console.log('[Controller] Position correction:', distance.toFixed(2), 'units');
       this.position = { ...position };
     }
   }

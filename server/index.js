@@ -163,21 +163,31 @@ function broadcastAllLobbies() {
  * Send current lobby state to all players in that lobby
  */
 function broadcastLobbyState(gameState) {
-  const players = Array.from(gameState.players.values()).map(p => ({
-    id: p.id,
-    username: p.username,
-    position: p.position,
-    rotation: p.rotation,
-    gaze: p.gaze,
-    health: p.health,
-    maxHealth: p.maxHealth,
-    score: p.score,
-    state: p.state,
-    attachedTo: p.attachedTo,
-    ready: p.ready,
-    attachmentState: p.attachmentState,
+  const players = Array.from(gameState.players.values())
+    .filter(p => p && p.position && typeof p.position.x === 'number') // Only include players with valid positions
+    .map(p => ({
+      id: p.id,
+      username: p.username,
+      position: p.position,
+      rotation: p.rotation,
+      gaze: p.gaze,
+      health: p.health,
+      maxHealth: p.maxHealth,
+      score: p.score,
+      state: p.state,
+      attachedTo: p.attachedTo,
+      ready: p.ready,
+      attachmentState: p.attachmentState,
 
-  }));
+    }));
+
+  if (players.length > 1) {
+    // Safe logging with null checks
+    const playerInfo = players.map(p => {
+      return `${p.username}(${p.id.slice(0, 6)}) at (${p.position.x.toFixed(1)},${p.position.z.toFixed(1)})`;
+    }).join(', ');
+    console.log(`[Broadcast] Lobby ${gameState.lobbyId}: Sending ${players.length} players: ${playerInfo}`);
+  }
 
   const monsters = Array.from(gameState.monsters.values()).map(m => ({
     id: m.id,
@@ -259,6 +269,35 @@ io.on('connection', (socket) => {
           playerId: actualPlayerId,
           message: `Welcome back, ${username}!`
         });
+      }
+    }
+
+    // Fallback reconnect path: if the playerId is still mapped to a lobby and exists in game state,
+    // allow immediate reuse even if we missed the disconnectedPlayers window (e.g., hard refresh).
+    if (!isReconnect && previousPlayerId && playerToLobby.has(previousPlayerId)) {
+      const mappedLobbyId = playerToLobby.get(previousPlayerId);
+      const mappedGameState = lobbyManager.getLobby(mappedLobbyId);
+      const mappedPlayer = mappedGameState?.getPlayer(previousPlayerId);
+
+      if (mappedGameState && mappedPlayer) {
+        isReconnect = true;
+        targetLobbyId = mappedLobbyId;
+        actualPlayerId = previousPlayerId;
+        playerId = previousPlayerId;
+
+        // Clear any pending reconnect timer entries
+        const timer = playerReconnectTimers.get(previousPlayerId);
+        if (timer) {
+          clearTimeout(timer);
+          playerReconnectTimers.delete(previousPlayerId);
+        }
+        disconnectedPlayers.delete(previousPlayerId);
+
+        // Mark player as reconnected in the stored state
+        mappedPlayer.isConnected = true;
+        mappedPlayer.disconnectTime = null;
+
+        logger.info(`Player ${playerId} reusing existing session in lobby ${targetLobbyId} via fallback reconnect.`);
       }
     }
 
@@ -371,7 +410,7 @@ io.on('connection', (socket) => {
     if (!lobbyId) return;
 
     const gameState = lobbyManager.getLobby(lobbyId);
-    if (!gameState || !gameState.active) return;
+    if (!gameState) return;
 
     gameState.updatePlayerTransform(playerId, data.position, data.rotation, data.gaze);
   });

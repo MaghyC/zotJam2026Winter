@@ -169,14 +169,10 @@ class GameScene {
     const serverIds = new Set();
     const localPlayerId = window.gameClient?.network?.playerId;
 
-    //onsole.log(`[Scene.updatePlayers] Received ${players?.length || 0} players, localPlayerId=${localPlayerId}`);
-
     for (const player of players) {
-      //console.log(`[Scene.updatePlayers] Player: id=${player.id}, state=${player.state}, alive=${player.state === 'alive'}`);
 
       // Skip dead players - don't render them
       if (player.state === 'dead') {
-        //console.log(`[Scene.updatePlayers] Skipping dead player ${player.id}`);
         continue;
       }
 
@@ -190,6 +186,7 @@ class GameScene {
       let mesh = this.playerMeshes.get(player.id);
       if (!mesh) {
         // Create new player mesh for OTHER players
+        console.log(`[Scene] Creating mesh for player ${player.id.slice(0, 6)}`);
         const geom = new THREE.BoxGeometry(0.9, 1.8, 2.2);
         const mat = new THREE.MeshStandardMaterial({
           color: player.attachmentState === 'ATTACHED' ? 0x00ff00 : 0x0066ff,
@@ -205,7 +202,7 @@ class GameScene {
         const gazeGeom = new THREE.BoxGeometry(0.1, 0.1, 1.0); // thin rectangular box
         const gazeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
         const gazeMesh = new THREE.Mesh(gazeGeom, gazeMat);
-        gazeMesh.position.set(0, 0.9, 1.5);
+        gazeMesh.position.set(0, 0.9, -1.5);
         gazeMesh.name = "gazeIndicator";
         mesh.add(gazeMesh);
 
@@ -215,7 +212,8 @@ class GameScene {
         //console.log('[Scene] Created mesh for player:', player.id, player.username);
       }
 
-      // Update position and rotation
+      // Update position and rotation from server data
+      console.log(`[Scene] Updating player ${player.id.slice(0, 6)} mesh to pos=(${player.position.x.toFixed(1)}, ${player.position.z.toFixed(1)})`);
       mesh.position.set(player.position.x, player.position.y, player.position.z);
 
       if (player.rotation) {

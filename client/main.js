@@ -332,6 +332,8 @@ class GameClient {
     this.ui.showMessage(`Joined lobby: ${data.lobbyCode}`, 'normal');
     document.getElementById('lobbyCodeValue').textContent = data.lobbyCode;
     document.getElementById('lobbyCode').style.display = 'block';
+    // Show ready panel immediately in lobby
+    this.ui.showReadyPanel();
   }
 
   /**
@@ -339,6 +341,8 @@ class GameClient {
    */
   onStateUpdate(data) {
     if (!data) return;
+
+    console.log('[Main] State update - active:', data.active, 'players:', data.players?.length, 'local:', this.network.playerId?.slice(0, 6));
 
     const wasActive = this.gameState?.active || false;
     const isNowActive = data.active;
@@ -394,8 +398,9 @@ class GameClient {
     if (this.localPlayer && this.ui) {
       this.ui.updateHUD(this.localPlayer, data);
 
-      // Basic reconciliation: align local position to server authoritative state
-      if (this.controller) {
+      // Only reconcile position when game is ACTIVE (match running)
+      // During lobby phase, allow full client-side prediction without server snapping
+      if (this.controller && data.active) {
         this.controller.setPosition(this.localPlayer.position);
       }
 

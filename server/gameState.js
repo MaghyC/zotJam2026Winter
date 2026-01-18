@@ -196,6 +196,12 @@ class GameState {
     if (!player) return;
 
     if (player && player.state === PLAYER_STATES.ALIVE) {
+      // Validate position data
+      if (!position || typeof position.x !== 'number' || typeof position.y !== 'number' || typeof position.z !== 'number') {
+        logger.warn(`Player ${playerId} sent invalid position:`, position, '- keeping existing position');
+        position = player.position; // Keep existing position
+      }
+
       // Check if player fell out of bounds (below -200)
       if (position && position.y < -200) {
         player.state = PLAYER_STATES.DEAD;
