@@ -79,7 +79,7 @@ const CONFIG = {
     MONSTER_DETECTION_RANGE: 8000,   // Detection range (units)
     MONSTER_DETECTION_CONE_ANGLE: 0.6, // ~70 degrees
     MONSTER_BLIND_SPOT_ANGLE: 0.2, // ~22 degrees
-    MONSTER_SPAWN_DELAY: 30000,    // Wait 30s before first spawn (ms)
+    MONSTER_SPAWN_DELAY: 20000,    // Wait 30s before first spawn (ms)
     MONSTER_SPAWN_RATE: 1,         // Spawn rate multiplier (1 per living player per minute)
     // Monster roar timings for GameState.spawnMonster
     MONSTER_ROAR_DURATION: 2000,      // 2s roar duration
@@ -98,6 +98,8 @@ const CONFIG = {
 
     // Obstacles
     OBSTACLE_COUNT: 30,            // Number of obstacles to spawn per match
+    // Avoid spawning obstacles too close to arena center (helps safe player spawns)
+    OBSTACLE_CLEAR_RADIUS: 4,
 
     // Pairing/Attachment
     PAIR_REQUEST_TIMEOUT: 30000,   // Request expires after 30s (ms)

@@ -271,8 +271,8 @@ class MonsterAI {
 
     for (const p of players) {
       // Vector from player to monster
-      const dx = monster.position.x - p.position.x;
-      const dz = monster.position.z - p.position.z;
+      const dx = p.position.x - monster.position.x;
+      const dz = p.position.z - monster.position.z;
       const distance = Math.sqrt(dx * dx + dz * dz);
       if (distance <= 0.001) continue;
 
@@ -359,8 +359,15 @@ class MonsterAI {
    * Monster attacks a player
    */
   attackPlayer(monster, player) {
-    const damage = CONFIG.MONSTER_ATTACK_DAMAGE || 10; // Fallback to 10 if not defined
+    const now = Date.now();
+    // Double-check: do not attack if any non-blinking player is looking at the monster
+    const { openWatchers } = this.getWatchingPlayers(monster, now);
+    if (openWatchers && openWatchers.length > 0) {
+      logger.debug(`Monster ${monster.id} refrained from attacking because player(s) are watching: ${openWatchers.join(',')}`);
+      return;
+    }
 
+    const damage = CONFIG.MONSTER_ATTACK_DAMAGE || 60;
     const newHealth = this.gameState.damagePlayer(player.id, damage);
     if (typeof newHealth === 'number') {
       logger.info(`Monster ${monster.id} attacked player ${player.id} (damage: ${damage.toFixed(1)}, health: ${newHealth.toFixed(1)})`);
@@ -373,12 +380,9 @@ class MonsterAI {
   checkMonsterSpawning() {
     const matchTime = this.gameState.getMatchElapsedTime();
 
-    // Don't spawn before 30s
     if (matchTime < CONFIG.MONSTER_SPAWN_DELAY) {
       return;
     }
-
-    // After initial delay, spawn 1 monster per living player per minute
     const livingPlayers = this.gameState.getLivingPlayers();
     const minutesElapsed = matchTime / 60000;
     const targetMonsterCount = Math.floor(livingPlayers.length * (1 + minutesElapsed));

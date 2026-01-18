@@ -90,14 +90,42 @@ class GameState {
       player.health = CONFIG.PLAYER_MAX_HEALTH;
       player.state = PLAYER_STATES.ALIVE;
       player.blinkCooldownEnd = 0;  // Ready to blink
-      // Respawn position
-      const angle = Math.random() * Math.PI * 2;
-      const distance = Math.random() * 30;
-      player.position = {
-        x: this.centerX + Math.cos(angle) * distance,
-        y: CONFIG.PLAYER_HEIGHT,
-        z: this.centerZ + Math.sin(angle) * distance
-      };
+      // Respawn position - avoid obstacles if present
+      let placed = false;
+      const obstacles = Array.from(this.obstacles.values());
+      const maxAttempts = 50;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * 30;
+        const x = this.centerX + Math.cos(angle) * distance;
+        const z = this.centerZ + Math.sin(angle) * distance;
+
+        // check collision against obstacles (simple AABB on XZ)
+        let collides = false;
+        for (const obs of obstacles) {
+          const halfW = (obs.width || 6) / 2;
+          const halfD = (obs.depth || 6) / 2;
+          if (x >= obs.position.x - halfW && x <= obs.position.x + halfW && z >= obs.position.z - halfD && z <= obs.position.z + halfD) {
+            collides = true;
+            break;
+          }
+        }
+        if (!collides) {
+          player.position = { x, y: CONFIG.PLAYER_HEIGHT, z };
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        // fallback to original random position if no free spot found
+        const angle = Math.random() * Math.PI * 2;
+        const distance = Math.random() * 30;
+        player.position = {
+          x: this.centerX + Math.cos(angle) * distance,
+          y: CONFIG.PLAYER_HEIGHT,
+          z: this.centerZ + Math.sin(angle) * distance
+        };
+      }
       player.ready = false;  // Reset ready
     }
 
@@ -120,11 +148,38 @@ class GameState {
   addPlayer(playerId, playerData) {
     logger.debug(`Adding player ${playerId} to lobby ${this.lobbyId}`);
 
-    // Random spawn position within safe zone
-    const angle = Math.random() * Math.PI * 2;
-    const distance = Math.random() * 30;
-    const spawnX = this.centerX + Math.cos(angle) * distance;
-    const spawnZ = this.centerZ + Math.sin(angle) * distance;
+    // Pick a spawn position avoiding existing obstacles if possible
+    let spawnX, spawnZ;
+    const obstacles = Array.from(this.obstacles.values());
+    const maxAttempts = 50;
+    let found = false;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * 30;
+      const x = this.centerX + Math.cos(angle) * distance;
+      const z = this.centerZ + Math.sin(angle) * distance;
+      let collides = false;
+      for (const obs of obstacles) {
+        const halfW = (obs.width || 6) / 2;
+        const halfD = (obs.depth || 6) / 2;
+        if (x >= obs.position.x - halfW && x <= obs.position.x + halfW && z >= obs.position.z - halfD && z <= obs.position.z + halfD) {
+          collides = true;
+          break;
+        }
+      }
+      if (!collides) {
+        spawnX = x;
+        spawnZ = z;
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * 30;
+      spawnX = this.centerX + Math.cos(angle) * distance;
+      spawnZ = this.centerZ + Math.sin(angle) * distance;
+    }
 
     this.players.set(playerId, {
       id: playerId,
@@ -314,7 +369,10 @@ class GameState {
     for (let c = 0; c < clusterCount; c++) {
       // cluster center scattered across more of the arena (up to 80% radius)
       const clusterAngle = Math.random() * Math.PI * 2;
-      const clusterDist = Math.random() * (this.arenaSafeRadius * 0.8);
+      const clearRadius = CONFIG.OBSTACLE_CLEAR_RADIUS || 4;
+      // ensure cluster centers are at least `clearRadius` away from arena center
+      const maxClusterRange = Math.max(0, this.arenaSafeRadius * 0.8 - clearRadius);
+      const clusterDist = clearRadius + Math.random() * maxClusterRange;
       const cx = this.centerX + Math.cos(clusterAngle) * clusterDist;
       const cz = this.centerZ + Math.sin(clusterAngle) * clusterDist;
 
@@ -327,8 +385,23 @@ class GameState {
         const angle = Math.random() * Math.PI * 2;
         // jitter each obstacle within a modest area around the cluster center
         const distance = Math.random() * (this.arenaSafeRadius * 0.18);
-        const x = cx + Math.cos(angle) * distance;
-        const z = cz + Math.sin(angle) * distance;
+        let x = cx + Math.cos(angle) * distance;
+        let z = cz + Math.sin(angle) * distance;
+        // Ensure obstacle is not placed too close to arena center
+        const dxCenter = x - this.centerX;
+        const dzCenter = z - this.centerZ;
+        const distCenter = Math.sqrt(dxCenter * dxCenter + dzCenter * dzCenter);
+        if (distCenter < clearRadius) {
+          if (distCenter <= 0.001) {
+            const a = Math.random() * Math.PI * 2;
+            x = this.centerX + Math.cos(a) * clearRadius;
+            z = this.centerZ + Math.sin(a) * clearRadius;
+          } else {
+            const scale = clearRadius / distCenter;
+            x = this.centerX + dxCenter * scale;
+            z = this.centerZ + dzCenter * scale;
+          }
+        }
         const w = 4 + Math.floor(Math.random() * 6); // width between 4..9
         const d = 4 + Math.floor(Math.random() * 6); // depth between 4..9
         const h = 4 + Math.floor(Math.random() * 6); // height between 4..9

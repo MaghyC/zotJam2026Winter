@@ -11,29 +11,22 @@ class NetworkManager {
   constructor(serverUrl = null) {
     // Auto-detect server URL
     if (!serverUrl) {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.hostname || 'localhost';
-      const port = window.location.port || '3000';
-      serverUrl = `${protocol}//${host}:${port}`;
+      this.serverUrl = serverUrl; // 可以为 null
+      this.socket = null;
+      this.playerId = null;
+      this.lobbyCode = null;
+      this.isConnected = false;
+      this.isReady = false;
+      this.previousPlayerId = null;
+
+      this.lastMessageTime = {};
+      this.messageRateLimits = {
+        player_input: 1000 / 60,
+        broadcast_timer: 2000,
+      };
+
+      this.callbacks = {};
     }
-
-    this.serverUrl = serverUrl;
-    this.socket = null;
-    this.playerId = null;
-    this.lobbyCode = null;
-    this.isConnected = false;
-    this.isReady = false;
-    this.previousPlayerId = null; // Track player ID for reconnection
-
-    // Rate limiting
-    this.lastMessageTime = {};
-    this.messageRateLimits = {
-      player_input: 1000 / 60, // 60 Hz
-      broadcast_timer: 2000, // Every 2s
-    };
-
-    // Callbacks
-    this.callbacks = {};
   }
 
   /**
@@ -46,13 +39,18 @@ class NetworkManager {
       try {
         console.log('[Network] Connecting to server:', this.serverUrl);
 
-        this.socket = io(this.serverUrl, {
+        // if no serverUrl，use same-origin (works for Render and local)
+        const ioOptions = {
           transports: ['websocket', 'polling'],
           reconnection: true,
           reconnectionDelay: 1000,
           reconnectionDelayMax: 5000,
           reconnectionAttempts: 5,
-        });
+        };
+
+        this.socket = this.serverUrl
+          ? io(this.serverUrl, ioOptions)
+          : io(ioOptions);
 
         // Store previous ID for reconnection attempt
         if (previousPlayerId) {
@@ -65,9 +63,7 @@ class NetworkManager {
           this.isConnected = true;
 
           // Request to join lobby
-          const joinData = {
-            username: username,
-          };
+          const joinData = { username };
 
           // If reconnecting, send the previous player ID
           if (this.previousPlayerId) {
@@ -84,7 +80,6 @@ class NetworkManager {
           this.isReady = false;
           this._fireCallback('disconnected');
 
-          // If we had a playerId, store it for reconnection
           if (this.playerId) {
             this.previousPlayerId = this.playerId;
             console.log('[Network] Stored player ID for potential reconnection:', this.previousPlayerId);
@@ -210,10 +205,6 @@ class NetworkManager {
         this.socket.on('player_reconnected', (data) => {
           console.log('[Network] Player reconnected:', data.playerId);
           this._fireCallback('player_reconnected', data);
-        });        // Error messages
-        this.socket.on('error', (data) => {
-          console.error('[Network] Server error:', data.message);
-          this._fireCallback('server_error', data);
         });
 
       } catch (error) {
@@ -222,6 +213,7 @@ class NetworkManager {
       }
     });
   }
+
 
   /**
    * Send player input (position, rotation, gaze) - rate limited
