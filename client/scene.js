@@ -16,6 +16,7 @@ class GameScene {
     this.playerMeshes = new Map();
     this.monsterMeshes = new Map();
     this.orbMeshes = new Map();
+    this.obstacleMeshes = new Map();
     this.arenaSafeRadius = 100;
 
     // Fullscreen black overlay for blink effect
@@ -128,36 +129,45 @@ class GameScene {
     walls.position.y = 30;
     group.add(walls);
 
-    // Obstacles for cover
-    this.createObstacles(group);
+    // Obstacles for cover (server-provided)
+    this.obstaclesGroup = new THREE.Group();
+    group.add(this.obstaclesGroup);
 
     this.scene.add(group);
   }
 
   /**
-   * Create scattered obstacles for cover/gameplay
+   * Update obstacles from server-provided authoritative list
+   * obstacles: [{ id, position: {x,y,z}, width, depth }]
    */
-  createObstacles(parentGroup) {
-    const obstacles = [
-      { x: 40, z: 40, w: 8, h: 10, d: 8 },
-      { x: -50, z: 30, w: 6, h: 8, d: 6 },
-      { x: 0, z: -60, w: 10, h: 12, d: 10 },
-      { x: -40, z: -40, w: 5, h: 7, d: 5 },
-      { x: 60, z: -20, w: 7, h: 9, d: 7 },
-      { x: -30, z: 0, w: 6, h: 8, d: 6 }
-    ];
+  updateObstacles(obstacles) {
+    const serverIds = new Set();
 
-    for (const obs of obstacles) {
-      const geom = new THREE.BoxGeometry(obs.w, obs.h, obs.d);
-      const mat = new THREE.MeshStandardMaterial({
-        color: 0x8b7355,
-        roughness: 0.8
-      });
-      const mesh = new THREE.Mesh(geom, mat);
-      mesh.position.set(obs.x, obs.h / 2, obs.z);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      parentGroup.add(mesh);
+    for (const obs of obstacles || []) {
+      serverIds.add(obs.id);
+
+      let mesh = this.obstacleMeshes.get(obs.id);
+      if (!mesh) {
+        const height = 6 + Math.max(2, Math.min(12, Math.floor((obs.width + obs.depth) / 2)));
+        const geom = new THREE.BoxGeometry(obs.width, height, obs.depth);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 0.8 });
+        mesh = new THREE.Mesh(geom, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        this.obstacleMeshes.set(obs.id, mesh);
+        this.obstaclesGroup.add(mesh);
+      }
+
+      const h = mesh.geometry.parameters ? (mesh.geometry.parameters.height || mesh.geometry.parameters.depth || 6) : 6;
+      mesh.position.set(obs.position.x, (h / 2) + 0.01, obs.position.z);
+    }
+
+    // Remove meshes no longer present on server
+    for (const [id, mesh] of this.obstacleMeshes.entries()) {
+      if (!serverIds.has(id)) {
+        this.obstaclesGroup.remove(mesh);
+        this.obstacleMeshes.delete(id);
+      }
     }
   }
 

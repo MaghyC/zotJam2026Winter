@@ -304,15 +304,44 @@ class GameClient {
     });
 
     this.network.on('attach_request', (data) => {
-      this.ui.showMessage(`${data.fromPlayerId} requests attachment (press V)`, 'normal');
+      this.ui.showAttachRequest(data.fromPlayerId);
     });
 
     this.network.on('attach_accepted', (data) => {
       this.ui.showMessage('Attachment accepted! 💙', 'normal');
+      // Update controller attachedTo
+      if (this.controller && this.network.playerId && (data.player1 === this.network.playerId || data.player2 === this.network.playerId)) {
+        const other = data.player1 === this.network.playerId ? data.player2 : data.player1;
+        this.controller.attachedTo = other;
+      }
     });
 
     this.network.on('attach_declined', (data) => {
       this.ui.showMessage('Attachment declined', 'warning');
+    });
+
+    this.network.on('attach_signal', (data) => {
+      // Only show if we're the target
+      if (this.network.playerId === data.toPlayerId) {
+        this.ui.showMessage(`Signal from ${data.fromPlayerId}: ${data.type}`, 'normal');
+      }
+    });
+
+    this.network.on('control_request', (data) => {
+      if (data.toPlayerId === this.network.playerId) {
+        this.ui.showControlRequest(data.fromPlayerId);
+      }
+    });
+
+    this.network.on('control_granted', (data) => {
+      this.ui.showMessage(`Control granted to ${data.controller}`, 'normal');
+    });
+
+    this.network.on('control_response', (data) => {
+      // notify requester if they are involved
+      if (data.toPlayerId === this.network.playerId || data.fromPlayerId === this.network.playerId) {
+        this.ui.showMessage(`Control response: ${data.accepted ? 'accepted' : 'declined'}`, 'normal');
+      }
     });
 
     this.network.on('disconnected', () => {
@@ -391,6 +420,7 @@ class GameClient {
       this.scene.updatePlayers(data.players || []);
       this.scene.updateMonsters(data.monsters || []);
       this.scene.updateOrbs(data.orbs || []);
+      this.scene.updateObstacles(data.obstacles || []);
       this.scene.updateArenaSafeRadius(data.arenaSafeRadius || 100);
     }
 
