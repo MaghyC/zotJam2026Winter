@@ -33,13 +33,25 @@ class UIManager {
       controlDeclineBtn: document.getElementById('controlDeclineBtn'),
     };
 
-    this.minimapCtx = this.elements.minimap.getContext('2d');
-    this.minimapWidth = this.elements.minimap.width;
-    this.minimapHeight = this.elements.minimap.height;
+    // Normalize missing elements to null and guard canvas context
+    for (const k of Object.keys(this.elements)) {
+      if (!this.elements[k]) this.elements[k] = null;
+    }
+
+    if (this.elements.minimap) {
+      this.minimapCtx = this.elements.minimap.getContext('2d');
+      this.minimapWidth = this.elements.minimap.width;
+      this.minimapHeight = this.elements.minimap.height;
+    } else {
+      this.minimapCtx = null;
+      this.minimapWidth = 200;
+      this.minimapHeight = 200;
+    }
 
     this.isPlayerReady = false;
     // Wire attach accept/decline buttons
-    this.elements.attachAcceptBtn.addEventListener('click', () => {
+    if (this.elements.attachAcceptBtn) {
+      this.elements.attachAcceptBtn.addEventListener('click', () => {
       if (this.attachRequestData) {
         const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
         if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
@@ -49,8 +61,10 @@ class UIManager {
         }
         this.hideAttachRequest();
       }
-    });
-    this.elements.attachDeclineBtn.addEventListener('click', () => {
+      });
+    }
+    if (this.elements.attachDeclineBtn) {
+      this.elements.attachDeclineBtn.addEventListener('click', () => {
       if (this.attachRequestData) {
         const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
         if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
@@ -60,10 +74,12 @@ class UIManager {
         }
         this.hideAttachRequest();
       }
-    });
+      });
+    }
 
     // Wire control accept/decline
-    this.elements.controlAcceptBtn.addEventListener('click', () => {
+    if (this.elements.controlAcceptBtn) {
+      this.elements.controlAcceptBtn.addEventListener('click', () => {
       if (this.controlRequestData) {
         const fromId = this.controlRequestData.fromPlayerId || this.controlRequestData.from;
         if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendControlResponse === 'function') {
@@ -73,8 +89,10 @@ class UIManager {
         }
         this.elements.controlNotification.classList.remove('show');
       }
-    });
-    this.elements.controlDeclineBtn.addEventListener('click', () => {
+      });
+    }
+    if (this.elements.controlDeclineBtn) {
+      this.elements.controlDeclineBtn.addEventListener('click', () => {
       if (this.controlRequestData) {
         const fromId = this.controlRequestData.fromPlayerId || this.controlRequestData.from;
         if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendControlResponse === 'function') {
@@ -84,7 +102,8 @@ class UIManager {
         }
         this.elements.controlNotification.classList.remove('show');
       }
-    });
+      });
+    }
   }
 
   /**
@@ -230,16 +249,22 @@ class UIManager {
    * Reset game HUD to initial state for new match
    */
   resetGameHUD() {
-    this.elements.hudHealth.textContent = '100/100';
-    this.elements.hudHealth.style.color = '#ffff00';
-    this.elements.hudScore.textContent = '0';
-    this.elements.hudPlayers.textContent = '0/8';
-    this.elements.hudMonsters.textContent = '0';
-    this.elements.hudStatus.textContent = 'Alone';
+    if (this.elements.hudHealth) {
+      this.elements.hudHealth.textContent = '100/100';
+      this.elements.hudHealth.style.color = '#ffff00';
+    }
+    if (this.elements.hudScore) this.elements.hudScore.textContent = '0';
+    if (this.elements.hudPlayers) this.elements.hudPlayers.textContent = '0/8';
+    if (this.elements.hudMonsters) this.elements.hudMonsters.textContent = '0';
+    if (this.elements.hudStatus) this.elements.hudStatus.textContent = 'Alone';
+
     // Reset blink timer
-    this.updateBlinkTimer(0, 20);
-    // Clear any messages
-    this.elements.messageBox.textContent = '';
+    this.updateBlinkTimer(0);
+
+    // Clear any messages (use `messages` element)
+    if (this.elements.messages) {
+      this.elements.messages.textContent = '';
+    }
   }
 
   /**

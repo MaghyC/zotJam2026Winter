@@ -585,7 +585,7 @@
 
     #attachNotification.show {
       display: block;
-      animation: slideDown 0.25s cubic-bezier(.2,.8,.2,1), attachPulse 1.4s ease-in-out 1;
+      animation: slideDown 0.25s cubic-bezier(.2, .8, .2, 1), attachPulse 1.4s ease-in-out 1;
     }
 
     @keyframes slideDown {
@@ -601,9 +601,20 @@
     }
 
     @keyframes attachPulse {
-      0% { box-shadow: 0 0 0 rgba(255,0,255,0.0); transform: translateX(-50%) translateY(0) scale(1); }
-      40% { box-shadow: 0 0 18px rgba(255,0,255,0.18); transform: translateX(-50%) translateY(0) scale(1.02); }
-      100% { box-shadow: 0 0 0 rgba(255,0,255,0.0); transform: translateX(-50%) translateY(0) scale(1); }
+      0% {
+        box-shadow: 0 0 0 rgba(255, 0, 255, 0.0);
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+
+      40% {
+        box-shadow: 0 0 18px rgba(255, 0, 255, 0.18);
+        transform: translateX(-50%) translateY(0) scale(1.02);
+      }
+
+      100% {
+        box-shadow: 0 0 0 rgba(255, 0, 255, 0.0);
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
     }
 
     #attachNotificationText {

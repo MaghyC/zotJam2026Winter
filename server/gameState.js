@@ -306,6 +306,10 @@ class GameState {
     // Create clustered obstacles closer to center so they appear inside shrinking arena
     const clusterCount = Math.max(2, Math.floor(count / 4));
     const perCluster = Math.ceil(count / clusterCount);
+
+    // debug: log intent to spawn
+    logger.debug(`Lobby ${this.lobbyId}: Spawning ${count} obstacles in ${clusterCount} clusters`);
+
     for (let c = 0; c < clusterCount; c++) {
       // cluster center within 40% of safe radius
       const clusterAngle = Math.random() * Math.PI * 2;
@@ -316,7 +320,8 @@ class GameState {
       for (let i = 0; i < perCluster; i++) {
         const idx = c * perCluster + i;
         if (idx >= count) break;
-        const obstacleId = `obs_${Date.now()}_${c}_${i}`;
+        // generate safer unique id (include random suffix)
+        const obstacleId = `obs_${Date.now()}_${c}_${i}_${Math.random().toString(36).slice(2, 8)}`;
         // place near cluster center within small jitter
         const angle = Math.random() * Math.PI * 2;
         const distance = Math.random() * (this.arenaSafeRadius * 0.12); // tight cluster
