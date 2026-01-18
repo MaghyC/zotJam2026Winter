@@ -127,6 +127,22 @@ class UIManager {
   }
 
   /**
+   * Reset game HUD to initial state for new match
+   */
+  resetGameHUD() {
+    this.elements.hudHealth.textContent = '100/100';
+    this.elements.hudHealth.style.color = '#ffff00';
+    this.elements.hudScore.textContent = '0';
+    this.elements.hudPlayers.textContent = '0/8';
+    this.elements.hudMonsters.textContent = '0';
+    this.elements.hudStatus.textContent = 'Alone';
+    // Reset blink timer
+    this.updateBlinkTimer(0, 20);
+    // Clear any messages
+    this.elements.messageBox.textContent = '';
+  }
+
+  /**
    * Update blink timer display (both center panel and sidebar)
    */
   updateBlinkTimer(secondsRemaining) {

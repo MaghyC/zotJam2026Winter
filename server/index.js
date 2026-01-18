@@ -312,11 +312,13 @@ io.on('connection', (socket) => {
         if (playerCount === CONFIG.PLAYERS_PER_LOBBY) {
           lobbyManager.startLobbyMatch(lobbyId);
           if (!gameLoopRunning) startGameLoop();
+          io.to(lobbyId).emit('match_started', { message: 'Match starting!' });
         } else {
           gameState._startTimeout = setTimeout(() => {
             if (!gameState.active && gameState.players.size > 0) {
               lobbyManager.startLobbyMatch(lobbyId);
               if (!gameLoopRunning) startGameLoop();
+              io.to(lobbyId).emit('match_started', { message: 'Match starting!' });
             }
           }, 5000);
         }
@@ -470,7 +472,7 @@ io.on('connection', (socket) => {
     if (!lobbyId) return;
 
     const gameState = lobbyManager.getLobby(lobbyId);
-    if (!gameState || gameState.active) return; // Can't ready up after game starts
+    if (!gameState) return; // Players can ready up before AND after match (for next round)
 
     // Require at least 2 players to start
     if (gameState.players.size < 2) {
@@ -487,7 +489,9 @@ io.on('connection', (socket) => {
     // Check if all players are ready and auto-start if so
     if (gameState.areAllPlayersReady() && gameState.players.size >= 2) {
       logger.info(`Lobby ${lobbyId}: All players ready! Starting match...`);
-      gameState.startMatch();
+      // Use lobbyManager to properly initialize match (spawn orbs, reset state)
+      lobbyManager.startLobbyMatch(lobbyId);
+      if (!gameLoopRunning) startGameLoop();
       io.to(lobbyId).emit('match_started', {
         message: 'All players ready! Match starting now!',
       });

@@ -340,6 +340,9 @@ class GameClient {
   onStateUpdate(data) {
     if (!data) return;
 
+    const wasActive = this.gameState?.active || false;
+    const isNowActive = data.active;
+
     // Store game state
     this.gameState = data;
 
@@ -354,6 +357,18 @@ class GameClient {
       this.ui.updateReadyPanel(data.players || [], this.network.playerId);
     } else {
       this.ui.hideReadyPanel();
+      // If game just started (transitioned from inactive to active), restart render loop and reset UI
+      if (!wasActive && isNowActive) {
+        this.collectedOrbIds.clear(); // Reset collected orbs for new match
+        this.ui.resetGameHUD();
+        // Sync controller position and rotation with server state
+        if (this.localPlayer && this.controller) {
+          this.controller.position = { ...this.localPlayer.position };
+          this.controller.rotation = { ...this.localPlayer.rotation };
+          this.controller.gaze = { ...this.localPlayer.gaze };
+        }
+        this.startRenderLoop();
+      }
     }
 
     // Clean up collected orbs set (remove orbs that are no longer in the game)
@@ -471,6 +486,11 @@ class GameClient {
       // Update player controller
       if (this.controller) {
         this.controller.update(deltaTime);
+      }
+
+      // Update camera to follow controller position and rotation
+      if (this.scene && this.controller) {
+        this.scene.updateCamera(this.controller.position, this.controller.rotation);
       }
 
       // Render scene

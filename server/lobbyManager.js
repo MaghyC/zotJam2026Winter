@@ -221,6 +221,9 @@ class LobbyManager {
       })),
     };
 
+    // Reset for potential next match (players can ready up again)
+    gameState.resetForNewMatch();
+
     logger.info(`Match ended in lobby ${lobbyId}`, stats);
     return stats;
   }
