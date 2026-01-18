@@ -280,19 +280,10 @@ class GameClient {
       if (requester) {
         this.ui.showAttachRequest(requester.username, data.fromPlayerId);
         this.currentAttachRequest = data.fromPlayerId;
+      } else {
+        this.ui.showAttachRequest(data.fromPlayerId);
+        this.currentAttachRequest = data.fromPlayerId;
       }
-    });
-
-    // Attach request accepted
-    this.network.on('attach_accepted', (data) => {
-      this.ui.showMessage('🤝 Attached!', 'normal');
-      this.ui.hideAttachRequest();
-    });
-
-    // Attach request declined
-    this.network.on('attach_declined', (data) => {
-      this.ui.showMessage('❌ Attachment declined', 'warning');
-      this.ui.hideAttachRequest();
     });
 
     // Blink timer broadcast from nearby players

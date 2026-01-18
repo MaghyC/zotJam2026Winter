@@ -27,6 +27,10 @@ class UIManager {
       attachNotificationText: document.getElementById('attachNotificationText'),
       attachAcceptBtn: document.getElementById('attachAcceptBtn'),
       attachDeclineBtn: document.getElementById('attachDeclineBtn'),
+      controlNotification: document.getElementById('controlNotification'),
+      controlNotificationText: document.getElementById('controlNotificationText'),
+      controlAcceptBtn: document.getElementById('controlAcceptBtn'),
+      controlDeclineBtn: document.getElementById('controlDeclineBtn'),
     };
 
     this.minimapCtx = this.elements.minimap.getContext('2d');
@@ -34,6 +38,53 @@ class UIManager {
     this.minimapHeight = this.elements.minimap.height;
 
     this.isPlayerReady = false;
+    // Wire attach accept/decline buttons
+    this.elements.attachAcceptBtn.addEventListener('click', () => {
+      if (this.attachRequestData) {
+        const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
+        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
+          window.gameClient.network.sendAttachResponse(fromId, true);
+        } else {
+          window.gameClient.network.socket.emit('attach_response', { fromPlayerId: fromId, accepted: true });
+        }
+        this.hideAttachRequest();
+      }
+    });
+    this.elements.attachDeclineBtn.addEventListener('click', () => {
+      if (this.attachRequestData) {
+        const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
+        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
+          window.gameClient.network.sendAttachResponse(fromId, false);
+        } else {
+          window.gameClient.network.socket.emit('attach_response', { fromPlayerId: fromId, accepted: false });
+        }
+        this.hideAttachRequest();
+      }
+    });
+
+    // Wire control accept/decline
+    this.elements.controlAcceptBtn.addEventListener('click', () => {
+      if (this.controlRequestData) {
+        const fromId = this.controlRequestData.fromPlayerId || this.controlRequestData.from;
+        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendControlResponse === 'function') {
+          window.gameClient.network.sendControlResponse(fromId, true);
+        } else {
+          window.gameClient.network.socket.emit('control_response', { toPlayerId: fromId, accepted: true });
+        }
+        this.elements.controlNotification.classList.remove('show');
+      }
+    });
+    this.elements.controlDeclineBtn.addEventListener('click', () => {
+      if (this.controlRequestData) {
+        const fromId = this.controlRequestData.fromPlayerId || this.controlRequestData.from;
+        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendControlResponse === 'function') {
+          window.gameClient.network.sendControlResponse(fromId, false);
+        } else {
+          window.gameClient.network.socket.emit('control_response', { toPlayerId: fromId, accepted: false });
+        }
+        this.elements.controlNotification.classList.remove('show');
+      }
+    });
   }
 
   /**
@@ -86,10 +137,26 @@ class UIManager {
   /**
    * Show attach request notification
    */
-  showAttachRequest(fromPlayerName, fromPlayerId) {
-    this.elements.attachNotificationText.textContent = `${fromPlayerName} wants to attach!`;
+  showAttachRequest(fromPlayerNameOrId, fromPlayerId) {
+    let name = null;
+    let id = null;
+    if (fromPlayerId) {
+      name = fromPlayerNameOrId;
+      id = fromPlayerId;
+    } else {
+      id = fromPlayerNameOrId;
+      name = null;
+    }
+    const display = name || (id ? id.slice(0, 6) : 'Unknown');
+    this.elements.attachNotificationText.textContent = `${display} wants to attach!`;
     this.elements.attachNotification.classList.add('show');
-    this.attachRequestData = { fromPlayerName, fromPlayerId };
+    this.attachRequestData = { fromPlayerName: name, fromPlayerId: id };
+  }
+
+  showControlRequest(fromPlayerId) {
+    this.elements.controlNotificationText.textContent = `${fromPlayerId} requests control`;
+    this.elements.controlNotification.classList.add('show');
+    this.controlRequestData = { fromPlayerId };
   }
 
   /**

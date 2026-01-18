@@ -161,6 +161,24 @@ class NetworkManager {
           this._fireCallback('attach_declined', data);
         });
 
+        // Control request / response
+        this.socket.on('control_request', (data) => {
+          this._fireCallback('control_request', data);
+        });
+
+        this.socket.on('control_response', (data) => {
+          this._fireCallback('control_response', data);
+        });
+
+        this.socket.on('control_granted', (data) => {
+          this._fireCallback('control_granted', data);
+        });
+
+        // Attach signals
+        this.socket.on('attach_signal', (data) => {
+          this._fireCallback('attach_signal', data);
+        });
+
         this.socket.on('player_detached', (data) => {
           this._fireCallback('player_detached', data);
         });
@@ -270,6 +288,14 @@ class NetworkManager {
       fromPlayerId,
       accepted: false,
     });
+  }
+
+  /**
+   * Respond to a control request (accept/decline)
+   */
+  sendControlResponse(toPlayerId, accepted) {
+    if (!this.isReady) return;
+    this.socket.emit('control_response', { toPlayerId, accepted });
   }
 
   /**
