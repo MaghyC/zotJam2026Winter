@@ -642,6 +642,51 @@
       background: #ff5500;
       box-shadow: 0 0 10px rgba(255, 102, 0, 0.5);
     }
+
+    /* Control Request Notification (center top) */
+    #controlNotification {
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.9);
+      border: 3px solid #00ffff;
+      padding: 16px 24px;
+      border-radius: 10px;
+      display: none;
+      z-index: 110;
+    }
+
+    #controlNotification.show {
+      display: block;
+    }
+
+    #controlNotificationText {
+      color: #00ffff;
+      font-weight: bold;
+      margin-bottom: 10px
+    }
+
+    #controlNotificationButtons {
+      display: flex;
+      gap: 10px;
+      justify-content: center
+    }
+
+    .control-btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer
+    }
+
+    #controlAcceptBtn {
+      background: #00ff00
+    }
+
+    #controlDeclineBtn {
+      background: #ff6600
+    }
   </style>
 </head>
 
@@ -674,6 +719,15 @@
     <div id="attachNotificationButtons">
       <button class="attach-btn" id="attachAcceptBtn">ACCEPT (V)</button>
       <button class="attach-btn" id="attachDeclineBtn">DECLINE (X)</button>
+    </div>
+  </div>
+
+  <!-- Control Request Notification -->
+  <div id="controlNotification">
+    <div id="controlNotificationText">Player requests control</div>
+    <div id="controlNotificationButtons">
+      <button class="control-btn" id="controlAcceptBtn">ACCEPT (V)</button>
+      <button class="control-btn" id="controlDeclineBtn">DECLINE (X)</button>
     </div>
   </div>
 

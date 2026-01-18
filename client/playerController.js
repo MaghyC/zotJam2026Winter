@@ -82,6 +82,29 @@ class PlayerController {
       this.network.sendBroadcastTimer();
       return;
     }
+
+    // Signal orb direction (O) and monster direction (P) when attached
+    if (key === 'o') {
+      if (this.attachedTo) {
+        this.network.socket.emit('signal_orb', { gaze: this.gaze });
+      }
+      return;
+    }
+
+    if (key === 'p') {
+      if (this.attachedTo) {
+        this.network.socket.emit('signal_monster', { gaze: this.gaze });
+      }
+      return;
+    }
+
+    // Request control when attached (N)
+    if (key === 'n') {
+      if (this.attachedTo) {
+        this.network.socket.emit('control_request', { targetPlayerId: this.attachedTo });
+      }
+      return;
+    }
   }
 
 
@@ -91,7 +114,17 @@ class PlayerController {
   setupInputListeners() {
     // Keyboard
     window.addEventListener('keydown', (e) => {
-      this.keys[e.key.toLowerCase()] = true;
+      const key = e.key.toLowerCase();
+      this.keys[key] = true;
+      // Handle double-U detach logic
+      if (key === 'u') {
+        const now = Date.now();
+        if (now - this.lastUPressTime < 500) {
+          // double press
+          this.network.socket.emit('detach', {});
+        }
+        this.lastUPressTime = now;
+      }
       this.handleKeyDown(e);
     });
 
@@ -306,12 +339,12 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                                        * Update player position based on WASD movement
-                                                        * W = forward (toward gaze)
-                                                        * S = backward
-                                                        * A = 90° left of gaze
-                                                        * D = 90° right of gaze
-                                                        */
+                                                         * Update player position based on WASD movement
+                                                         * W = forward (toward gaze)
+                                                         * S = backward
+                                                         * A = 90° left of gaze
+                                                         * D = 90° right of gaze
+                                                         */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
     const backwardMultiplier = (CONFIG && CONFIG.PLAYER_BACKWARD_SPEED_MULTIPLIER) || 0.5;
