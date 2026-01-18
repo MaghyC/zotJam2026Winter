@@ -96,6 +96,9 @@ const CONFIG = {
     ORB_RESPAWN_INTERVAL: 5000,    // Respawn collected orbs every 5s (ms)
     ORB_POINTS_PER_ORB: 1,         // Points for collecting
 
+    // Obstacles
+    OBSTACLE_COUNT: 12,            // Number of obstacles to spawn per match
+
     // Pairing/Attachment
     PAIR_REQUEST_TIMEOUT: 30000,   // Request expires after 30s (ms)
     PAIR_BROADCAST_RANGE: 50,      // Broadcast range for nearby players

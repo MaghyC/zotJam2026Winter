@@ -46,6 +46,7 @@ class GameState {
     this.players = new Map(); // playerId -> Player
     this.monsters = new Map(); // monsterId -> Monster
     this.orbs = new Map(); // orbId -> Orb
+    this.obstacles = new Map(); // obstacleId -> Obstacle
 
     // Game phase timing
     this.matchStartTime = null; // will be set when match starts
@@ -102,6 +103,7 @@ class GameState {
 
     // Clear game objects
     this.orbs.clear();
+    this.obstacles.clear();
     this.monsters.clear();
     this.matchStartTime = null;  // Will be set by startMatch
   }
@@ -148,6 +150,11 @@ class GameState {
       // Pairing state
       pairRequestPendingTo: null,
       pairRequestFrom: [],
+
+      // Control request state when attached
+      controlRequestPendingTo: null,
+      controlRequestFrom: [],
+      isControlling: true,
 
       // For spectating when dead
       spectatingPlayerId: null,
@@ -279,6 +286,38 @@ class GameState {
   }
 
   /**
+   * Spawn a single obstacle
+   */
+  spawnObstacle(obstacleId, position, size) {
+    this.obstacles.set(obstacleId, {
+      id: obstacleId,
+      position: { x: position.x, y: position.y || 0, z: position.z },
+      width: size.w,
+      depth: size.d,
+    });
+  }
+
+  /**
+   * Spawn random obstacles inside the safe zone
+   */
+  spawnRandomObstacles(count) {
+    for (let i = 0; i < count; i++) {
+      const obstacleId = `obs_${Date.now()}_${i}`;
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * (this.arenaSafeRadius * 0.8);
+      const x = this.centerX + Math.cos(angle) * distance;
+      const z = this.centerZ + Math.sin(angle) * distance;
+      const w = 4 + Math.floor(Math.random() * 8); // width between 4..11
+      const d = 4 + Math.floor(Math.random() * 8); // depth between 4..11
+      this.spawnObstacle(obstacleId, { x, y: 0, z }, { w, d });
+    }
+  }
+
+  getActiveObstacles() {
+    return Array.from(this.obstacles.values());
+  }
+
+  /**
    * Mark an orb as collected
    */
   collectOrb(orbId, playerId) {
@@ -290,14 +329,30 @@ class GameState {
 
       const player = this.players.get(playerId);
       if (player) {
+        // If attached to another player (mutual), split points
+        const otherId = player.attachedTo;
+        if (otherId) {
+          const other = this.players.get(otherId);
+          if (other && other.attachedTo === playerId) {
+            const total = orb.value;
+            const half = Math.floor(total / 2);
+            const rem = total - half;
+            player.orbsCollected += 1;
+            other.orbsCollected += 1;
+            player.score += half;
+            other.score += rem;
+            return { split: true, results: [{ playerId, points: half }, { playerId: otherId, points: rem }] };
+          }
+        }
+
+        // Default: give all to collector
         player.orbsCollected += 1;
         player.score += orb.value;
       }
 
-      //logger.debug(`Player ${playerId} collected orb ${orbId}`);
-      return orb.value;
+      return { split: false, results: [{ playerId, points: orb.value }] };
     }
-    return 0;
+    return null;
   }
 
   /**

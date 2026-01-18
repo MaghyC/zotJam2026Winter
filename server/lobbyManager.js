@@ -158,6 +158,10 @@ class LobbyManager {
 
     // Spawn initial orbs
     gameState.spawnRandomOrbs(CONFIG.ORB_COUNT_INITIAL);
+    // Spawn random obstacles for cover
+    if (CONFIG.OBSTACLE_COUNT && CONFIG.OBSTACLE_COUNT > 0) {
+      gameState.spawnRandomObstacles(CONFIG.OBSTACLE_COUNT);
+    }
 
     logger.info(`Match started in lobby ${lobbyId} with ${gameState.players.size} players`);
     return true;

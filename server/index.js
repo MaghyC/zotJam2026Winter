@@ -50,6 +50,7 @@ const monsterAIByLobby = new Map(); // lobbyId -> MonsterAI instance
 const playerToLobby = new Map(); // playerId (socket.id) -> lobbyId
 const playerReconnectTimers = new Map(); // playerId -> timeout id for reconnection grace period
 const disconnectedPlayers = new Map(); // playerId -> { lobbyId, disconnectTime, timeout }
+const controlRequestTimers = new Map(); // key `${from}_${to}` -> timeout id for auto-decline
 const playerSessions = new Map(); // username -> { playerId, lobbyId, lastActive }
 
 // ==================== GAME LOOP ====================
@@ -205,10 +206,18 @@ function broadcastLobbyState(gameState) {
     value: o.value,
   }));
 
+  const obstacles = Array.from(gameState.getActiveObstacles ? gameState.getActiveObstacles() : []).map(o => ({
+    id: o.id,
+    position: o.position,
+    width: o.width,
+    depth: o.depth,
+  }));
+
   const payload = {
     players,
     monsters,
     orbs,
+    obstacles,
     arenaSafeRadius: gameState.arenaSafeRadius,
     matchTime: gameState.getMatchElapsedTime() / 1000, // seconds
     active: gameState.active, // Include whether game is active or in lobby
@@ -439,14 +448,27 @@ io.on('connection', (socket) => {
     const gameState = lobbyManager.getLobby(lobbyId);
     if (!gameState) return;
 
-    const points = gameState.collectOrb(data.orbId, playerId);
-    if (points > 0) {
-      io.to(lobbyId).emit('orb_collected', {
-        orbId: data.orbId,
-        playerId,
-        points,
-      });
-      logger.debug(`Player ${playerId} collected orb ${data.orbId} (+${points})`);
+    const result = gameState.collectOrb(data.orbId, playerId);
+    if (result) {
+      if (result.split) {
+        // Notify both players of split
+        for (const r of result.results) {
+          io.to(lobbyId).emit('orb_collected', {
+            orbId: data.orbId,
+            playerId: r.playerId,
+            points: r.points,
+          });
+          logger.debug(`Player ${r.playerId} collected orb ${data.orbId} (+${r.points}) [split]`);
+        }
+      } else {
+        const r = result.results[0];
+        io.to(lobbyId).emit('orb_collected', {
+          orbId: data.orbId,
+          playerId: r.playerId,
+          points: r.points,
+        });
+        logger.debug(`Player ${r.playerId} collected orb ${data.orbId} (+${r.points})`);
+      }
     }
   });
 
@@ -459,6 +481,15 @@ io.on('connection', (socket) => {
     const gameState = lobbyManager.getLobby(lobbyId);
     if (!gameState) return;
 
+    // Prevent request if either player is already attached
+    const requester = gameState.getPlayer(playerId);
+    const target = gameState.getPlayer(data.targetPlayerId);
+    if (!requester || !target) return;
+    if (requester.attachedTo || target.attachedTo) {
+      socket.emit('attach_error', { message: 'Either you or target is already attached' });
+      return;
+    }
+
     const success = gameState.requestAttachment(playerId, data.targetPlayerId);
     if (success) {
       io.to(lobbyId).emit('attach_request', {
@@ -466,6 +497,106 @@ io.on('connection', (socket) => {
         toPlayerId: data.targetPlayerId,
       });
     }
+  });
+
+  /**
+   * control_request - Request control when attached (N)
+   */
+  socket.on('control_request', (data) => {
+    if (!lobbyId) return;
+    const gameState = lobbyManager.getLobby(lobbyId);
+    if (!gameState) return;
+
+    const from = playerId;
+    const to = data.targetPlayerId;
+    const fromPlayer = gameState.getPlayer(from);
+    const toPlayer = gameState.getPlayer(to);
+    if (!fromPlayer || !toPlayer) return;
+
+    // Must be mutually attached
+    if (fromPlayer.attachedTo !== to || toPlayer.attachedTo !== from) {
+      socket.emit('control_error', { message: 'Players not attached' });
+      return;
+    }
+
+    // Register pending request
+    fromPlayer.controlRequestPendingTo = to;
+    toPlayer.controlRequestFrom.push(from);
+
+    // Emit request to target
+    io.to(lobbyId).emit('control_request', { fromPlayerId: from, toPlayerId: to });
+
+    // Auto-decline after 5s
+    const key = `${from}_${to}`;
+    if (controlRequestTimers.has(key)) clearTimeout(controlRequestTimers.get(key));
+    const t = setTimeout(() => {
+      // If still pending, auto-decline
+      const fp = gameState.getPlayer(from);
+      const tp = gameState.getPlayer(to);
+      if (fp && fp.controlRequestPendingTo === to) {
+        fp.controlRequestPendingTo = null;
+      }
+      if (tp) tp.controlRequestFrom = tp.controlRequestFrom.filter(id => id !== from);
+      io.to(lobbyId).emit('control_response', { fromPlayerId: to, toPlayerId: from, accepted: false, auto: true });
+      controlRequestTimers.delete(key);
+    }, 5000);
+    controlRequestTimers.set(key, t);
+  });
+
+  /**
+   * control_response - Target accepts/declines control request
+   */
+  socket.on('control_response', (data) => {
+    if (!lobbyId) return;
+    const gameState = lobbyManager.getLobby(lobbyId);
+    if (!gameState) return;
+
+    const responder = playerId; // the one responding
+    const requester = data.toPlayerId; // original requester
+    const accepted = !!data.accepted;
+    const fromPlayer = gameState.getPlayer(requester);
+    const toPlayer = gameState.getPlayer(responder);
+    if (!fromPlayer || !toPlayer) return;
+
+    // Clear pending
+    fromPlayer.controlRequestPendingTo = null;
+    toPlayer.controlRequestFrom = toPlayer.controlRequestFrom.filter(id => id !== requester);
+
+    const key = `${requester}_${responder}`;
+    if (controlRequestTimers.has(key)) {
+      clearTimeout(controlRequestTimers.get(key));
+      controlRequestTimers.delete(key);
+    }
+
+    if (accepted) {
+      // Grant control to requester, revoke from responder
+      fromPlayer.isControlling = true;
+      toPlayer.isControlling = false;
+      io.to(lobbyId).emit('control_granted', { controller: requester, receiver: responder });
+    } else {
+      io.to(lobbyId).emit('control_response', { fromPlayerId: responder, toPlayerId: requester, accepted: false });
+    }
+  });
+
+  /**
+   * signal_orb / signal_monster - O/P signals sent to attached partner
+   */
+  socket.on('signal_orb', (data) => {
+    if (!lobbyId) return;
+    const gameState = lobbyManager.getLobby(lobbyId);
+    if (!gameState) return;
+    const p = gameState.getPlayer(playerId);
+    if (!p || !p.attachedTo) return;
+    io.to(lobbyId).emit('attach_signal', { fromPlayerId: playerId, toPlayerId: p.attachedTo, type: 'orb', gaze: data.gaze });
+  });
+
+  socket.on('signal_monster', (data) => {
+    if (!lobbyId) return;
+    const gameState = lobbyManager.getLobby(lobbyId);
+    if (!gameState) return;
+    const p = gameState.getPlayer(playerId);
+    if (!p || !p.attachedTo) return;
+    io.to(lobbyId).emit('attach_signal', { fromPlayerId: playerId, toPlayerId: p.attachedTo, type: 'monster', gaze: data.gaze });
   });
 
   /**
