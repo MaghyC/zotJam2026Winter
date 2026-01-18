@@ -405,16 +405,22 @@ class UIManager {
       ctx.fillStyle = '#ffff00';
       ctx.fillRect(centerX - 4, centerY - 4, 8, 8);
 
-      // Draw heading based on rotation.y (yaw). Forward = up.
+      // Draw heading by transforming the forward world vector into map space
       const len = 12;
-      // Invert horizontal component to match client yaw sign convention
-      const hx = -Math.sin(yaw) * len;
-      const hy = Math.cos(yaw) * len;
+      const fx = Math.sin(yaw);
+      const fz = Math.cos(yaw);
+      const mF = worldToMap(fx, fz);
+      // vector from center to forward point
+      let vx = mF.x - centerX;
+      let vy = mF.y - centerY;
+      const vlen = Math.sqrt(vx * vx + vy * vy) || 1;
+      vx = (vx / vlen) * len;
+      vy = (vy / vlen) * len;
       ctx.strokeStyle = '#ffff00';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(centerX, centerY);
-      ctx.lineTo(centerX + hx, centerY - hy);
+      ctx.lineTo(centerX - vx, centerY - vy);
       ctx.stroke();
     }
   }

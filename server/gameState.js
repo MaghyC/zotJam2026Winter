@@ -595,7 +595,7 @@ class GameState {
     // Place the requesting player just behind the responding player
     try {
       const gaze = responding.gaze || { x: 0, y: 0, z: 1 };
-      const backDist = CONFIG.ATTACH_BACK_DISTANCE * 10 || 15;
+      const backDist = CONFIG.ATTACH_BACK_DISTANCE || 0.4;
       requesting.position = {
         x: responding.position.x + gaze.x * backDist,
         y: CONFIG.PLAYER_HEIGHT,

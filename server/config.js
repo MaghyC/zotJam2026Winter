@@ -103,7 +103,7 @@ const CONFIG = {
     PAIR_REQUEST_TIMEOUT: 30000,   // Request expires after 30s (ms)
     PAIR_BROADCAST_RANGE: 50,      // Broadcast range for nearby players
     // Attachment offsets
-    ATTACH_BACK_DISTANCE: 1.5,     // How far behind the target the attached player is placed
+    ATTACH_BACK_DISTANCE: 0.4,     // How far behind the target the attached player is placed
 
     // Game Duration
     GAME_DURATION: 180000,         // 3 minute (ms)

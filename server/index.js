@@ -443,9 +443,9 @@ io.on('connection', (socket) => {
     for (const [, other] of gameState.players) {
       if (other.attachedTo === playerId && other.id !== playerId) {
         const gaze = player.gaze || { x: 0, y: 0, z: 1 };
-        const backDist = CONFIG.ATTACH_BACK_DISTANCE || 1.5;
-        other.position.x = player.position.x - gaze.x * backDist;
-        other.position.z = player.position.z - gaze.z * backDist;
+        const backDist = CONFIG.ATTACH_BACK_DISTANCE || 0.4;
+        other.position.x = player.position.x + gaze.x * backDist;
+        other.position.z = player.position.z + gaze.z * backDist;
         other.position.y = CONFIG.PLAYER_HEIGHT;
         // Keep other's rotation updated to face same direction
         other.rotation = { ...player.rotation };
