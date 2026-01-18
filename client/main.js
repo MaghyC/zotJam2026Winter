@@ -342,7 +342,7 @@ class GameClient {
   onStateUpdate(data) {
     if (!data) return;
 
-    console.log('[Main] State update - active:', data.active, 'players:', data.players?.length, 'local:', this.network.playerId?.slice(0, 6));
+    //console.log('[Main] State update - active:', data.active, 'players:', data.players?.length, 'local:', this.network.playerId?.slice(0, 6));
 
     const wasActive = this.gameState?.active || false;
     const isNowActive = data.active;
@@ -433,7 +433,7 @@ class GameClient {
       if (distance <= ORB_COLLECTION_RADIUS) {
         this.collectedOrbIds.add(orb.id);
         this.network.sendCollectOrb(orb.id);
-        console.log('[Main] Orb collected:', orb.id, 'distance:', distance.toFixed(2));
+        //console.log('[Main] Orb collected:', orb.id, 'distance:', distance.toFixed(2));
       }
     }
   }

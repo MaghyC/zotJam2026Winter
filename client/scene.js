@@ -213,7 +213,7 @@ class GameScene {
       }
 
       // Update position and rotation from server data
-      console.log(`[Scene] Updating player ${player.id.slice(0, 6)} mesh to pos=(${player.position.x.toFixed(1)}, ${player.position.z.toFixed(1)})`);
+      //console.log(`[Scene] Updating player ${player.id.slice(0, 6)} mesh to pos=(${player.position.x.toFixed(1)}, ${player.position.z.toFixed(1)})`);
       mesh.position.set(player.position.x, player.position.y, player.position.z);
 
       if (player.rotation) {

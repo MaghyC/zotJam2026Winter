@@ -166,6 +166,10 @@ class MonsterAI {
     const target = this.gameState.getPlayer(monster.targetPlayerId);
     if (!target) return;
 
+    // If any non-blinking player is looking at the monster, it cannot attack
+    const { openWatchers } = this.getWatchingPlayers(monster, now);
+    const isWatchedByOpenEyes = openWatchers.length > 0;
+
     // Check if close enough to attack
     const dx = target.position.x - monster.position.x;
     const dz = target.position.z - monster.position.z;
@@ -173,7 +177,7 @@ class MonsterAI {
 
     if (distance < 2) {
       // Can attack
-      if (now >= monster.nextAttackTime) {
+      if (!isWatchedByOpenEyes && now >= monster.nextAttackTime) {
         this.attackPlayer(monster, target);
         monster.nextAttackTime = now + 2000; // Attack cooldown
       }
@@ -252,6 +256,45 @@ class MonsterAI {
     const coneThreshold = Math.cos((Math.PI / 3) / 2); // 60 degrees
 
     return dotProduct > coneThreshold;
+  }
+
+  /**
+   * Determine which players are currently looking at the monster.
+   * Returns arrays of watchers with eyes open vs watchers who are mid-blink (eyes closed).
+   */
+  getWatchingPlayers(monster, now) {
+    const openWatchers = [];
+    const blinkingWatchers = [];
+
+    const players = this.gameState.getLivingPlayers();
+    const coneThreshold = Math.cos(CONFIG.GAZE_RAYCAST_CONE_ANGLE / 2);
+
+    for (const p of players) {
+      // Vector from player to monster
+      const dx = monster.position.x - p.position.x;
+      const dz = monster.position.z - p.position.z;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+      if (distance <= 0.001) continue;
+
+      // Ignore if monster is outside reasonable sight range
+      if (distance > CONFIG.VISION_DETECTION_RANGE) continue;
+
+      // Player gaze direction (normalized)
+      const gaze = p.gaze || { x: 0, y: 0, z: 1 };
+
+      // Cosine of angle between gaze and vector to monster
+      const dot = (gaze.x * dx + gaze.z * dz) / distance;
+      if (dot < coneThreshold) continue; // Not looking at monster
+
+      const isBlinking = p.lastBlinkTime && (now - p.lastBlinkTime) <= CONFIG.PLAYER_BLINK_BLACKOUT_DURATION;
+      if (isBlinking) {
+        blinkingWatchers.push(p.id);
+      } else {
+        openWatchers.push(p.id);
+      }
+    }
+
+    return { openWatchers, blinkingWatchers };
   }
 
   /**
