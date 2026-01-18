@@ -184,7 +184,7 @@ class PlayerController {
     if (!window.gameClient?.gameState?.players) return null;
 
     const players = window.gameClient.gameState.players || [];
-    const maxDistance = 30; // Can target players within 30 units
+    const maxDistance = 800; // Can target players within 800 units
 
     // Find closest player in front
     let closest = null;
@@ -194,9 +194,9 @@ class PlayerController {
       if (p.id === window.gameClient.network.playerId) continue; // Skip self
       if (p.state === 'dead') continue; // Skip dead players
 
-      const dx = p.position.x - this.position.x;
-      const dy = p.position.y - this.position.y;
-      const dz = p.position.z - this.position.z;
+      const dx = this.position.x - p.position.x;
+      const dy = this.position.y - p.position.y;
+      const dz = this.position.z - p.position.z;
       const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
       if (distance < closestDistance) {
@@ -339,12 +339,12 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                                          * Update player position based on WASD movement
-                                                          * W = forward (toward gaze)
-                                                          * S = backward
-                                                          * A = 90° left of gaze
-                                                          * D = 90° right of gaze
-                                                          */
+                                                              * Update player position based on WASD movement
+                                                              * W = forward (toward gaze)
+                                                              * S = backward
+                                                              * A = 90° left of gaze
+                                                              * D = 90° right of gaze
+                                                              */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
     const backwardMultiplier = (CONFIG && CONFIG.PLAYER_BACKWARD_SPEED_MULTIPLIER) || 0.5;

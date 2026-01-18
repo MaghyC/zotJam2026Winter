@@ -163,6 +163,66 @@ class LobbyManager {
       gameState.spawnRandomObstacles(CONFIG.OBSTACLE_COUNT);
     }
 
+    // Ensure players do not spawn inside obstacles: re-roll spawn positions if needed
+    const obstacles = Array.from(gameState.getActiveObstacles());
+    if (obstacles.length > 0) {
+      const maxAttempts = 50;
+      for (const player of gameState.players.values()) {
+        // try several times to find a non-colliding spawn
+        let placed = false;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          const angle = Math.random() * Math.PI * 2;
+          const distance = Math.random() * 30;
+          const x = gameState.centerX + Math.cos(angle) * distance;
+          const z = gameState.centerZ + Math.sin(angle) * distance;
+
+          // check collision against obstacles (simple AABB on XZ)
+          let collides = false;
+          for (const obs of obstacles) {
+            const halfW = (obs.width || 6) / 2;
+            const halfD = (obs.depth || 6) / 2;
+            if (x >= obs.position.x - halfW && x <= obs.position.x + halfW && z >= obs.position.z - halfD && z <= obs.position.z + halfD) {
+              collides = true;
+              break;
+            }
+          }
+
+          if (!collides) {
+            player.position = { x, y: CONFIG.PLAYER_HEIGHT, z };
+            placed = true;
+            break;
+          }
+        }
+
+        // If we couldn't find a non-colliding spot, just move player to nearest non-overlapping offset
+        if (!placed) {
+          // naive fallback: push outward until free
+          let x = player.position.x;
+          let z = player.position.z;
+          let step = 2;
+          let attempts = 0;
+          while (attempts < 100) {
+            let collides = false;
+            for (const obs of obstacles) {
+              const halfW = (obs.width || 6) / 2;
+              const halfD = (obs.depth || 6) / 2;
+              if (x >= obs.position.x - halfW && x <= obs.position.x + halfW && z >= obs.position.z - halfD && z <= obs.position.z + halfD) {
+                collides = true;
+                break;
+              }
+            }
+            if (!collides) break;
+            // move outwards in a spiral-ish pattern
+            x += (Math.random() - 0.5) * step;
+            z += (Math.random() - 0.5) * step;
+            attempts++;
+            step += 0.5;
+          }
+          player.position = { x, y: CONFIG.PLAYER_HEIGHT, z };
+        }
+      }
+    }
+
     logger.info(`Match started in lobby ${lobbyId} with ${gameState.players.size} players`);
     return true;
   }
