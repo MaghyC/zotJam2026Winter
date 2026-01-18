@@ -109,37 +109,9 @@ class PlayerController {
   /**
    * Handle discrete key presses (not continuous)
    */
-  handleKeyDown(event) {
-    const key = event.key.toLowerCase();
 
-    // Blink action
-    if (key === 'r') {
-      this.network.sendBlink();
-    }
-
-    // Attachment requests
-    if (key === 'v') {
-      this.handleVPress();
-    }
-
-    if (key === 'x') {
-      this.handleXPress();
-    }
-
-    // Detach (requires double press)
-    if (key === 'u') {
-      this.handleUPress();
-    }
-
-    // Broadcast blink timer to nearby
-    if (key === 'i') {
-      this.network.sendBlinkTimerBroadcast();
-    }
-
-    // TODO: Implement O and P signals (orb/monster in direction) shows on minimap
-    // TODO: Implement N for control request
-    // TODO: Implement arrow keys for head turning
-  }
+  // TODO: Implement O and P signals (orb/monster in direction) shows on minimap
+  // TODO: Implement N for control request
 
   /**
    * V key - attachment request or accept
@@ -293,12 +265,12 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                              * Update player position based on WASD movement
-                                              * W = forward (toward gaze)
-                                              * S = backward
-                                              * A = 90° left of gaze
-                                              * D = 90° right of gaze
-                                              */
+                                                * Update player position based on WASD movement
+                                                * W = forward (toward gaze)
+                                                * S = backward
+                                                * A = 90° left of gaze
+                                                * D = 90° right of gaze
+                                                */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
 
