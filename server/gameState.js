@@ -304,16 +304,17 @@ class GameState {
    */
   spawnRandomObstacles(count) {
     // Create clustered obstacles closer to center so they appear inside shrinking arena
-    const clusterCount = Math.max(2, Math.floor(count / 4));
+    // Increase number of clusters (so less obstacles per cluster)
+    const clusterCount = Math.max(2, Math.floor(count / 2));
     const perCluster = Math.ceil(count / clusterCount);
 
     // debug: log intent to spawn
     logger.debug(`Lobby ${this.lobbyId}: Spawning ${count} obstacles in ${clusterCount} clusters`);
 
     for (let c = 0; c < clusterCount; c++) {
-      // cluster center within 40% of safe radius
+      // cluster center scattered across more of the arena (up to 80% radius)
       const clusterAngle = Math.random() * Math.PI * 2;
-      const clusterDist = Math.random() * (this.arenaSafeRadius * 0.4);
+      const clusterDist = Math.random() * (this.arenaSafeRadius * 0.8);
       const cx = this.centerX + Math.cos(clusterAngle) * clusterDist;
       const cz = this.centerZ + Math.sin(clusterAngle) * clusterDist;
 
@@ -324,7 +325,8 @@ class GameState {
         const obstacleId = `obs_${Date.now()}_${c}_${i}_${Math.random().toString(36).slice(2, 8)}`;
         // place near cluster center within small jitter
         const angle = Math.random() * Math.PI * 2;
-        const distance = Math.random() * (this.arenaSafeRadius * 0.12); // tight cluster
+        // jitter each obstacle within a modest area around the cluster center
+        const distance = Math.random() * (this.arenaSafeRadius * 0.18);
         const x = cx + Math.cos(angle) * distance;
         const z = cz + Math.sin(angle) * distance;
         const w = 4 + Math.floor(Math.random() * 6); // width between 4..9

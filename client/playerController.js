@@ -339,12 +339,12 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                                         * Update player position based on WASD movement
-                                                         * W = forward (toward gaze)
-                                                         * S = backward
-                                                         * A = 90° left of gaze
-                                                         * D = 90° right of gaze
-                                                         */
+                                                          * Update player position based on WASD movement
+                                                          * W = forward (toward gaze)
+                                                          * S = backward
+                                                          * A = 90° left of gaze
+                                                          * D = 90° right of gaze
+                                                          */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
     const backwardMultiplier = (CONFIG && CONFIG.PLAYER_BACKWARD_SPEED_MULTIPLIER) || 0.5;
@@ -421,7 +421,15 @@ class PlayerController {
 
 
   isPositionBlocked(x, z) {
-    const obstacles = [
+    // Prefer authoritative obstacle list from server/gameState if available
+    const serverObs = window.gameClient?.gameState?.obstacles;
+    const obstacles = Array.isArray(serverObs) && serverObs.length > 0 ? serverObs.map(o => ({
+      x: o.position.x,
+      z: o.position.z,
+      w: o.width || (o.w || 6),
+      d: o.depth || (o.d || 6)
+    })) : [
+      // fallback static obstacles if server list unavailable
       { x: 40, z: 40, w: 8, d: 8 },
       { x: -50, z: 30, w: 6, d: 6 },
       { x: 0, z: -60, w: 10, d: 10 },

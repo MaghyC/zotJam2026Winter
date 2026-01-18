@@ -52,56 +52,56 @@ class UIManager {
     // Wire attach accept/decline buttons
     if (this.elements.attachAcceptBtn) {
       this.elements.attachAcceptBtn.addEventListener('click', () => {
-      if (this.attachRequestData) {
-        const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
-        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
-          window.gameClient.network.sendAttachResponse(fromId, true);
-        } else {
-          window.gameClient.network.socket.emit('attach_response', { fromPlayerId: fromId, accepted: true });
+        if (this.attachRequestData) {
+          const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
+          if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
+            window.gameClient.network.sendAttachResponse(fromId, true);
+          } else {
+            window.gameClient.network.socket.emit('attach_response', { fromPlayerId: fromId, accepted: true });
+          }
+          this.hideAttachRequest();
         }
-        this.hideAttachRequest();
-      }
       });
     }
     if (this.elements.attachDeclineBtn) {
       this.elements.attachDeclineBtn.addEventListener('click', () => {
-      if (this.attachRequestData) {
-        const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
-        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
-          window.gameClient.network.sendAttachResponse(fromId, false);
-        } else {
-          window.gameClient.network.socket.emit('attach_response', { fromPlayerId: fromId, accepted: false });
+        if (this.attachRequestData) {
+          const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
+          if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
+            window.gameClient.network.sendAttachResponse(fromId, false);
+          } else {
+            window.gameClient.network.socket.emit('attach_response', { fromPlayerId: fromId, accepted: false });
+          }
+          this.hideAttachRequest();
         }
-        this.hideAttachRequest();
-      }
       });
     }
 
     // Wire control accept/decline
     if (this.elements.controlAcceptBtn) {
       this.elements.controlAcceptBtn.addEventListener('click', () => {
-      if (this.controlRequestData) {
-        const fromId = this.controlRequestData.fromPlayerId || this.controlRequestData.from;
-        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendControlResponse === 'function') {
-          window.gameClient.network.sendControlResponse(fromId, true);
-        } else {
-          window.gameClient.network.socket.emit('control_response', { toPlayerId: fromId, accepted: true });
+        if (this.controlRequestData) {
+          const fromId = this.controlRequestData.fromPlayerId || this.controlRequestData.from;
+          if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendControlResponse === 'function') {
+            window.gameClient.network.sendControlResponse(fromId, true);
+          } else {
+            window.gameClient.network.socket.emit('control_response', { toPlayerId: fromId, accepted: true });
+          }
+          this.elements.controlNotification.classList.remove('show');
         }
-        this.elements.controlNotification.classList.remove('show');
-      }
       });
     }
     if (this.elements.controlDeclineBtn) {
       this.elements.controlDeclineBtn.addEventListener('click', () => {
-      if (this.controlRequestData) {
-        const fromId = this.controlRequestData.fromPlayerId || this.controlRequestData.from;
-        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendControlResponse === 'function') {
-          window.gameClient.network.sendControlResponse(fromId, false);
-        } else {
-          window.gameClient.network.socket.emit('control_response', { toPlayerId: fromId, accepted: false });
+        if (this.controlRequestData) {
+          const fromId = this.controlRequestData.fromPlayerId || this.controlRequestData.from;
+          if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendControlResponse === 'function') {
+            window.gameClient.network.sendControlResponse(fromId, false);
+          } else {
+            window.gameClient.network.socket.emit('control_response', { toPlayerId: fromId, accepted: false });
+          }
+          this.elements.controlNotification.classList.remove('show');
         }
-        this.elements.controlNotification.classList.remove('show');
-      }
       });
     }
   }
