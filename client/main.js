@@ -282,8 +282,9 @@ class GameClient {
       }
     });
 
-    // Attach request received from another player
+    // Attach request received from another player - only show to the target
     this.network.on('attach_request', (data) => {
+      if (data.toPlayerId !== this.network.playerId) return; // ignore if not for us
       const requester = (this.gameState?.players || []).find(p => p.id === data.fromPlayerId);
       if (requester) {
         this.ui.showAttachRequest(requester.username, data.fromPlayerId);
@@ -302,9 +303,7 @@ class GameClient {
       this.ui.showMessage(`⏱️ ${playerName}: ${data.timerRemaining.toFixed(1)}s`, 'normal');
     });
 
-    this.network.on('attach_request', (data) => {
-      this.ui.showAttachRequest(data.fromPlayerId);
-    });
+    // (no-op here; attach_request handled above and only shown to the recipient)
 
     this.network.on('attach_accepted', (data) => {
       this.ui.showMessage('Attachment accepted! 💙', 'normal');
