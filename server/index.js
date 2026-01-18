@@ -111,8 +111,22 @@ function updateAllLobbies(deltaTime) {
     }
 
     const livingPlayers = gameState.getLivingPlayers();
+    const now = Date.now();
     for (const player of livingPlayers) {
-      gameState.regenPlayer(player.id, CONFIG.PLAYER_REGEN_AMOUNT);
+      // Regenerate health every configured interval (1% every 5s)
+      if (!player.lastRegenTime || (now - player.lastRegenTime) >= CONFIG.PLAYER_REGEN_INTERVAL) {
+        gameState.regenPlayer(player.id, CONFIG.PLAYER_REGEN_AMOUNT);
+      }
+
+      // Apply damage when outside the shrinking safe radius
+      const dx = player.position.x - gameState.centerX;
+      const dz = player.position.z - gameState.centerZ;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist > gameState.arenaSafeRadius) {
+        const damagePerSecond = CONFIG.ARENA_OUTSIDE_DAMAGE_PER_SECOND || 5;
+        const damage = damagePerSecond * deltaTime;
+        gameState.damagePlayer(player.id, damage);
+      }
     }
 
     const matchTime = gameState.getMatchElapsedTime();
@@ -171,6 +185,7 @@ function broadcastLobbyState(gameState) {
     rotation: m.rotation,
     state: m.state,
     health: m.health,
+    spawnTime: m.spawnTime,
     frozenBy: m.frozenBy || [],
   }));
 

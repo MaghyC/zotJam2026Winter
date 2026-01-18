@@ -1,0 +1,63 @@
+
+> multi-lobby-blink-royale@2.0.0 start
+> node server/index.js
+
+[2026-01-18T06:13:53.133Z] [INFO] ========================================
+[2026-01-18T06:13:53.134Z] [INFO] Multi-Lobby Blink Royale Server
+[2026-01-18T06:13:53.134Z] [INFO] ========================================
+[2026-01-18T06:13:53.134Z] [INFO] Server running on ws://0.0.0.0:3000
+[2026-01-18T06:13:53.134Z] [INFO] Web UI: http://0.0.0.0:3000
+[2026-01-18T06:13:53.134Z] [INFO] Admin stats: http://0.0.0.0:3000/admin/stats
+[2026-01-18T06:13:53.134Z] [INFO] Admin lobbies: http://0.0.0.0:3000/admin/lobbies
+[2026-01-18T06:13:53.134Z] [INFO] Waiting for players...
+[2026-01-18T06:13:55.583Z] [INFO] Join lobby request: 3iu4ra_1aRZaTShYAAAB {"username":"awfw","previousPlayerId":"J4EvxNqzrm2hZAVjAAAB"}
+[2026-01-18T06:13:55.584Z] [INFO] Created lobby: 9Y3S
+[2026-01-18T06:13:55.585Z] [INFO] Player 3iu4ra_1aRZaTShYAAAB health after spawn: 100
+[2026-01-18T06:13:55.585Z] [INFO] Player 3iu4ra_1aRZaTShYAAAB joined lobby 9Y3S (1/8)
+[2026-01-18T06:13:55.587Z] [INFO] Player 3iu4ra_1aRZaTShYAAAB joined lobby 9Y3S (1/8)
+[2026-01-18T06:14:02.499Z] [INFO] Join lobby request: vtrDSvOP40I_IEr3AAAD {"username":"mg","previousPlayerId":"1b5iZBJFrLGtkdqzAAAB"}
+[2026-01-18T06:14:02.499Z] [INFO] Player vtrDSvOP40I_IEr3AAAD health after spawn: 100
+[2026-01-18T06:14:02.499Z] [INFO] Player vtrDSvOP40I_IEr3AAAD joined lobby 9Y3S (2/8)
+[2026-01-18T06:14:02.500Z] [INFO] Player vtrDSvOP40I_IEr3AAAD joined lobby 9Y3S (2/8)
+[2026-01-18T06:14:07.502Z] [INFO] Lobby 9Y3S: Match started
+[2026-01-18T06:14:07.503Z] [INFO] Match started in lobby 9Y3S with 2 players
+[2026-01-18T06:14:07.503Z] [INFO] Game loop started
+[2026-01-18T06:16:22.044Z] [INFO] Player disconnected: vtrDSvOP40I_IEr3AAAD from lobby 9Y3S
+[2026-01-18T06:16:22.487Z] [INFO] Join lobby request: ctK0pde77O54ZePJAAAF {"username":"mg","previousPlayerId":"1b5iZBJFrLGtkdqzAAAB"}
+[2026-01-18T06:16:22.487Z] [INFO] Created lobby: 59KX
+[2026-01-18T06:16:22.487Z] [INFO] Player ctK0pde77O54ZePJAAAF health after spawn: 100
+[2026-01-18T06:16:22.487Z] [INFO] Player ctK0pde77O54ZePJAAAF joined lobby 59KX (1/8)
+[2026-01-18T06:16:22.487Z] [INFO] Player ctK0pde77O54ZePJAAAF joined lobby 59KX (1/8)
+[2026-01-18T06:16:46.003Z] [INFO] Player disconnected: ctK0pde77O54ZePJAAAF from lobby 59KX
+[2026-01-18T06:16:46.344Z] [INFO] Join lobby request: xGZiyZjutORp2uGvAAAH {"username":"mg","previousPlayerId":"ctK0pde77O54ZePJAAAF"}
+[2026-01-18T06:16:46.344Z] [INFO] Player ctK0pde77O54ZePJAAAF reconnecting to lobby 59KX
+[2026-01-18T06:16:46.344Z] [INFO] Player ctK0pde77O54ZePJAAAF reconnected to lobby 59KX (1/8)
+[2026-01-18T06:17:07.509Z] [INFO] Match ended in lobby 9Y3S {"lobbyId":"9Y3S","duration":180006,"winners":[{"id":"vtrDSvOP40I_IEr3AAAD","username":"mg","score":40}],"playerStats":[{"id":"3iu4ra_1aRZaTShYAAAB","username":"awfw","score":0,"orbsCollected":0,"state":"alive"},{"id":"vtrDSvOP40I_IEr3AAAD","username":"mg","score":40,"orbsCollected":4,"state":"alive"}]}
+[2026-01-18T06:17:07.510Z] [INFO] Match ended in lobby 9Y3S {"lobbyId":"9Y3S","duration":180006,"winners":[{"id":"vtrDSvOP40I_IEr3AAAD","username":"mg","score":40}],"playerStats":[{"id":"3iu4ra_1aRZaTShYAAAB","username":"awfw","score":0,"orbsCollected":0,"state":"alive"},{"id":"vtrDSvOP40I_IEr3AAAD","username":"mg","score":40,"orbsCollected":4,"state":"alive"}]}
+[2026-01-18T06:17:22.044Z] [INFO] Player vtrDSvOP40I_IEr3AAAD left lobby 9Y3S (1 remaining)
+[2026-01-18T06:17:22.047Z] [INFO] Player permanently removed after reconnect timeout: vtrDSvOP40I_IEr3AAAD
+[2026-01-18T06:17:23.400Z] [INFO] Player disconnected: ctK0pde77O54ZePJAAAF from lobby 59KX
+[2026-01-18T06:17:23.782Z] [INFO] Join lobby request: nm_Kf9tlVZ928dnEAAAJ {"username":"mg","previousPlayerId":"ctK0pde77O54ZePJAAAF"}
+[2026-01-18T06:17:23.782Z] [INFO] Player ctK0pde77O54ZePJAAAF reconnecting to lobby 59KX
+[2026-01-18T06:17:23.782Z] [INFO] Player ctK0pde77O54ZePJAAAF reconnected to lobby 59KX (1/8)
+[2026-01-18T06:17:37.607Z] [INFO] Join lobby request: h0YoI3xXMdkMvk09AAAL {"username":"awfw","previousPlayerId":"3iu4ra_1aRZaTShYAAAB"}
+[2026-01-18T06:17:37.608Z] [INFO] Player h0YoI3xXMdkMvk09AAAL health after spawn: 100
+[2026-01-18T06:17:37.608Z] [INFO] Player h0YoI3xXMdkMvk09AAAL joined lobby 9Y3S (2/8)
+[2026-01-18T06:17:37.609Z] [INFO] Player h0YoI3xXMdkMvk09AAAL joined lobby 9Y3S (2/8)
+[2026-01-18T06:17:43.993Z] [INFO] Player disconnected: ctK0pde77O54ZePJAAAF from lobby 59KX
+[2026-01-18T06:17:44.335Z] [INFO] Join lobby request: Yd_VGYdKhZgqdKRRAAAN {"username":"mg","previousPlayerId":"ctK0pde77O54ZePJAAAF"}
+[2026-01-18T06:17:44.335Z] [INFO] Player ctK0pde77O54ZePJAAAF reconnecting to lobby 59KX
+[2026-01-18T06:17:44.335Z] [INFO] Player ctK0pde77O54ZePJAAAF reconnected to lobby 59KX (1/8)
+[2026-01-18T06:18:51.539Z] [INFO] Player disconnected: ctK0pde77O54ZePJAAAF from lobby 59KX
+[2026-01-18T06:18:59.811Z] [INFO] Join lobby request: xYLqWQPISvK2-uF0AAAP {"username":"wet24wes","previousPlayerId":"WwRBHMrhxQ8h0B2vAAAF"}
+[2026-01-18T06:18:59.812Z] [INFO] Player xYLqWQPISvK2-uF0AAAP health after spawn: 100
+[2026-01-18T06:18:59.812Z] [INFO] Player xYLqWQPISvK2-uF0AAAP joined lobby 9Y3S (3/8)
+[2026-01-18T06:18:59.812Z] [INFO] Player xYLqWQPISvK2-uF0AAAP joined lobby 9Y3S (3/8)
+[2026-01-18T06:19:13.989Z] [INFO] Join lobby request: Jpnu08awO8TMesOyAAAR {"username":"saf1","previousPlayerId":"0VFAVJd-dnhZWRCQAAAB"}
+[2026-01-18T06:19:13.990Z] [INFO] Player Jpnu08awO8TMesOyAAAR health after spawn: 100
+[2026-01-18T06:19:13.990Z] [INFO] Player Jpnu08awO8TMesOyAAAR joined lobby 9Y3S (4/8)
+[2026-01-18T06:19:13.990Z] [INFO] Player Jpnu08awO8TMesOyAAAR joined lobby 9Y3S (4/8)
+[2026-01-18T06:19:32.571Z] [INFO] Player disconnected: xYLqWQPISvK2-uF0AAAP from lobby 9Y3S
+[2026-01-18T06:19:46.598Z] [INFO] Player disconnected: h0YoI3xXMdkMvk09AAAL from lobby 9Y3S
+[2026-01-18T06:19:51.541Z] [INFO] Player ctK0pde77O54ZePJAAAF left lobby 59KX (0 remaining)
+[2026-01-18T06:19:51.543Z] [INFO] Player permanently removed after reconnect timeout: ctK0pde77O54ZePJAAAF

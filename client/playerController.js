@@ -5,7 +5,7 @@
  * Implements all keybindings for movement, blink, attachment, and broadcasts.
  */
 
-const CONFIG = (window.GAMETYPES && window.GAMETYPES.GAMECONSTANTS) || {};
+const CONFIG = (window.GAME_TYPES && window.GAME_TYPES.GAME_CONSTANTS) || {};
 
 class PlayerController {
   // TOP OF CLASS (after constructor fields)
@@ -265,14 +265,15 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                                * Update player position based on WASD movement
-                                                * W = forward (toward gaze)
-                                                * S = backward
-                                                * A = 90° left of gaze
-                                                * D = 90° right of gaze
-                                                */
+                                                  * Update player position based on WASD movement
+                                                  * W = forward (toward gaze)
+                                                  * S = backward
+                                                  * A = 90° left of gaze
+                                                  * D = 90° right of gaze
+                                                  */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
+    const backwardMultiplier = (CONFIG && CONFIG.PLAYER_BACKWARD_SPEED_MULTIPLIER) || 0.5;
 
     // Horizontal forward direction from gaze (y ignored)
     const forward = {
@@ -313,8 +314,13 @@ class PlayerController {
     if (moveLen > 0) {
       moveX /= moveLen;
       moveZ /= moveLen;
+      // Apply slower speed when moving backward (S without W)
+      let speed = MOVE_SPEED;
+      if (this.keys['s'] && !this.keys['w']) {
+        speed *= backwardMultiplier;
+      }
 
-      const distance = MOVE_SPEED * deltaTime;
+      const distance = speed * deltaTime;
       const newX = this.position.x + moveX * distance;
       const newZ = this.position.z + moveZ * distance;
 

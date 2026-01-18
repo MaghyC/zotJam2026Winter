@@ -130,32 +130,25 @@ class UIManager {
    * Update blink timer display (both center panel and sidebar)
    */
   updateBlinkTimer(secondsRemaining) {
-    if (secondsRemaining > 0) {
-      this.elements.blinkTimerPanel.style.display = 'flex';
+    const maxSeconds = 20; // UI assumes 20s max blink timer
 
-      let color;
-      const percent = maxTime > 0 ? timerRemaining / maxTime : 0;
-      if (percent > 0.6) {
-        color = '#00ff00';
-      } else if (percent > 0.3) {
-        color = '#ffff00';
-      } else {
-        color = '#ff0000';
-      }
-      this.elements.blinkTimerValue.style.color = color;
-    } else {
-      this.elements.blinkTimerPanel.style.display = 'none';
-    }
+    // Don't display center circle - only sidebar
+    // if (secondsRemaining > 0) {
+    //   this.elements.blinkTimerPanel.style.display = 'flex';
+    //   this.elements.blinkTimerValue.textContent = secondsRemaining.toFixed(1);
+    // } else {
+    //   this.elements.blinkTimerPanel.style.display = 'none';
+    // }
 
     // Update sidebar with 0.1s precision
     this.elements.blinkTimerSidebarValue.textContent = secondsRemaining.toFixed(1) + 's';
 
     // Color code the sidebar
-    const percent = secondsRemaining / 20;
+    const sidebarPercent = Math.max(0, Math.min(1, secondsRemaining / maxSeconds));
     let sidebarColor;
-    if (percent > 0.6) {
+    if (sidebarPercent > 0.6) {
       sidebarColor = '#00ff00';
-    } else if (percent > 0.3) {
+    } else if (sidebarPercent > 0.3) {
       sidebarColor = '#ffff00';
     } else {
       sidebarColor = '#ff0000';
@@ -220,10 +213,31 @@ class UIManager {
       }
     }
 
+    // Obstacles (simple static layout)
+    const obstacles = [
+      { x: 40, z: 40, w: 8, d: 8 },
+      { x: -50, z: 30, w: 6, d: 6 },
+      { x: 0, z: -60, w: 10, d: 10 },
+      { x: -40, z: -40, w: 5, d: 5 },
+      { x: 60, z: -20, w: 7, d: 7 },
+      { x: -30, z: 0, w: 6, d: 6 }
+    ];
+    ctx.fillStyle = '#888888';
+    for (const obs of obstacles) {
+      const px = centerX + (obs.x * scale);
+      const py = centerY + (obs.z * scale);
+      const w = obs.w * scale;
+      const h = obs.d * scale;
+      ctx.fillRect(px - w / 2, py - h / 2, w, h);
+    }
+
     // Monsters
     if (gameState.monsters) {
+      const now = Date.now();
       for (const m of gameState.monsters) {
-        ctx.fillStyle = m.state === 'roaring' ? '#ff0000' : '#ff6600';
+        // Red for first 10s after spawn, then orange
+        const isFreshSpawn = m.spawnTime && (now - m.spawnTime < 10000);
+        ctx.fillStyle = isFreshSpawn ? '#ff0000' : '#ff6600';
         const mx = centerX + (m.position.x * scale);
         const my = centerY + (m.position.z * scale);
         ctx.beginPath();

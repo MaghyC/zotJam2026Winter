@@ -232,7 +232,7 @@ class GameScene {
       // Update color based on attachment state
       if (mesh.material) {
         mesh.material.color.setHex(
-          player.attachmentState === 'ATTACHED' ? 0x00ff00 : 0x0066ff
+          (player.attachmentState === 'attached') ? 0x00ff00 : 0x0066ff
         );
       }
     }

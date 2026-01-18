@@ -54,6 +54,7 @@ const CONFIG = {
     ARENA_SHRINK_START_TIME: 120000, // Start shrinking at 2 minutes (ms)
     ARENA_SHRINK_DURATION: 60000,  // Shrink over 1 minute (ms)
     ARENA_FINAL_RADIUS: 10,        // Final shrunk radius
+    ARENA_OUTSIDE_DAMAGE_PER_SECOND: 5, // Damage per second outside safe zone
 
     // Player
     PLAYERS_PER_LOBBY: 8,          // Max players in one lobby

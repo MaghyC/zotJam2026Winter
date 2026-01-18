@@ -379,15 +379,10 @@ class GameClient {
     if (this.localPlayer && this.ui) {
       this.ui.updateHUD(this.localPlayer, data);
 
-      // Calculate blink timer remaining
-
-      let remaining = this.localPlayer?.blinkCooldownRemaining || 0;
-
-      if (!Number.isFinite(remaining)) {
-        remaining = 0;
+      // Basic reconciliation: align local position to server authoritative state
+      if (this.controller) {
+        this.controller.setPosition(this.localPlayer.position);
       }
-
-      this.ui.updateBlinkTimer(remaining);
 
       // Draw minimap
       this.ui.drawMinimap(this.localPlayer, data, 100);
