@@ -104,6 +104,37 @@ class UIManager {
         }
       });
     }
+
+    // Keyboard shortcuts for attach requests: 'E' = accept, 'X' = decline
+    window.addEventListener('keydown', (ev) => {
+      // Only handle when an attach notification is visible
+      if (!this.attachRequestData) return;
+      // Ignore when typing in an input/textarea
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+      const key = (ev.key || '').toLowerCase();
+      if (key === 'e') {
+        // Accept
+        const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
+        if (!fromId) return;
+        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
+          window.gameClient.network.sendAttachResponse(fromId, true);
+        } else if (window.gameClient && window.gameClient.network && window.gameClient.network.socket) {
+          window.gameClient.network.socket.emit('attach_response', { fromPlayerId: fromId, accepted: true });
+        }
+        this.hideAttachRequest();
+      } else if (key === 'x') {
+        // Decline
+        const fromId = this.attachRequestData.fromPlayerId || this.attachRequestData.from;
+        if (!fromId) return;
+        if (window.gameClient && window.gameClient.network && typeof window.gameClient.network.sendAttachResponse === 'function') {
+          window.gameClient.network.sendAttachResponse(fromId, false);
+        } else if (window.gameClient && window.gameClient.network && window.gameClient.network.socket) {
+          window.gameClient.network.socket.emit('attach_response', { fromPlayerId: fromId, accepted: false });
+        }
+        this.hideAttachRequest();
+      }
+    });
   }
 
   /**
@@ -240,7 +271,7 @@ class UIManager {
 
     let status = 'Alone';
     if (player.attachedTo) {
-      status = '💙 Paired';
+      status = '� Paired';
     }
     this.elements.hudStatus.textContent = status;
   }
@@ -376,7 +407,8 @@ class UIManager {
 
       // Draw heading based on rotation.y (yaw). Forward = up.
       const len = 12;
-      const hx = Math.sin(yaw) * len;
+      // Invert horizontal component to match client yaw sign convention
+      const hx = -Math.sin(yaw) * len;
       const hy = Math.cos(yaw) * len;
       ctx.strokeStyle = '#ffff00';
       ctx.lineWidth = 2;

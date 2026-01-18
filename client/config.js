@@ -25,7 +25,7 @@ const CONFIG = {
   // ==================== PLAYER MECHANICS ====================
   PLAYER_SPEED: 25, // units/second forward
   PLAYER_BACKWARD_SPEED_MULTIPLIER: 0.5, // Backward is 50% speed
-  PLAYER_HEIGHT: 1.8,
+  PLAYER_HEIGHT: 1.6,
   PLAYER_MAX_HEALTH: 100,
   PLAYER_REGEN_AMOUNT: 1, // Health per regen tick
   PLAYER_REGEN_INTERVAL: 5000, // Regen every 5 seconds

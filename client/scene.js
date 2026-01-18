@@ -209,7 +209,7 @@ class GameScene {
       if (!mesh) {
         // Create new player mesh for OTHER players
         console.log(`[Scene] Creating mesh for player ${player.id.slice(0, 6)}`);
-        const geom = new THREE.BoxGeometry(0.9, 1.8, 2.2);
+        const geom = new THREE.BoxGeometry(0.8, 1.8, 0.8);
         const mat = new THREE.MeshStandardMaterial({
           color: player.attachmentState === 'ATTACHED' ? 0x00ff00 : 0x0066ff,
           metalness: 0.3,
@@ -224,7 +224,7 @@ class GameScene {
         const gazeGeom = new THREE.BoxGeometry(0.1, 0.1, 1.0); // thin rectangular box
         const gazeMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
         const gazeMesh = new THREE.Mesh(gazeGeom, gazeMat);
-        gazeMesh.position.set(0, 0.9, -1.5);
+        gazeMesh.position.set(0, 0.9, -0.6);
         gazeMesh.name = "gazeIndicator";
         mesh.add(gazeMesh);
 

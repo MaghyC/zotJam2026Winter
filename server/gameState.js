@@ -588,6 +588,25 @@ class GameState {
     responding.attachmentState = ATTACHMENT_STATES.ATTACHED;
     requesting.attachmentState = ATTACHMENT_STATES.ATTACHED;
 
+    // By default, the responding (target) becomes the walking/controller
+    responding.isControlling = true;
+    requesting.isControlling = false;
+
+    // Place the requesting player just behind the responding player
+    try {
+      const gaze = responding.gaze || { x: 0, y: 0, z: 1 };
+      const backDist = CONFIG.ATTACH_BACK_DISTANCE * 10 || 15;
+      requesting.position = {
+        x: responding.position.x + gaze.x * backDist,
+        y: CONFIG.PLAYER_HEIGHT,
+        z: responding.position.z + gaze.z * backDist,
+      };
+      // Align requester rotation to face same direction
+      //requesting.rotation = { ...responding.rotation };
+    } catch (e) {
+      logger.debug('Failed to position attached player behind target', e);
+    }
+
     logger.info(`Players ${respondingPlayerId} and ${requestingPlayerId} are attached`);
     return true;
   }
@@ -677,6 +696,25 @@ class GameState {
     }
 
     return viewers;
+  }
+
+  /**
+   * Get the current state of the game
+   */
+  getState() {
+    return {
+      players: Array.from(this.players.values()),
+      monsters: Array.from(this.monsters.values()),
+      orbs: Array.from(this.orbs.values()),
+      obstacles: Array.from(this.obstacles.values()),
+      arena: {
+        centerX: this.centerX,
+        centerZ: this.centerZ,
+        safeRadius: this.arenaSafeRadius,
+      },
+      matchStartTime: this.matchStartTime,
+      active: this.active,
+    };
   }
 }
 

@@ -178,6 +178,7 @@ function broadcastLobbyState(gameState) {
       state: p.state,
       attachedTo: p.attachedTo,
       ready: p.ready,
+      isControlling: (typeof p.isControlling === 'boolean') ? p.isControlling : true,
       attachmentState: p.attachmentState,
 
     }));
@@ -424,7 +425,32 @@ io.on('connection', (socket) => {
     const gameState = lobbyManager.getLobby(lobbyId);
     if (!gameState) return;
 
+    const player = gameState.getPlayer(playerId);
+    if (!player) return;
+
+    // If attached and not controlling movement, only accept rotation/gaze updates (view-only)
+    if (player.attachedTo && !player.isControlling) {
+      if (data.rotation) player.rotation = data.rotation;
+      if (data.gaze) player.gaze = data.gaze;
+      // do not update position for non-controlling attached players
+      return;
+    }
+
+    // Normal update (controller or unattached)
     gameState.updatePlayerTransform(playerId, data.position, data.rotation, data.gaze);
+
+    // If this player is controlling for any attached partner(s), place them behind the controller
+    for (const [, other] of gameState.players) {
+      if (other.attachedTo === playerId && other.id !== playerId) {
+        const gaze = player.gaze || { x: 0, y: 0, z: 1 };
+        const backDist = CONFIG.ATTACH_BACK_DISTANCE || 1.5;
+        other.position.x = player.position.x - gaze.x * backDist;
+        other.position.z = player.position.z - gaze.z * backDist;
+        other.position.y = CONFIG.PLAYER_HEIGHT;
+        // Keep other's rotation updated to face same direction
+        other.rotation = { ...player.rotation };
+      }
+    }
   });
 
   /**
@@ -617,6 +643,7 @@ io.on('connection', (socket) => {
         player1: playerId,
         player2: data.fromPlayerId,
       });
+      io.to(lobbyId).emit('state_update', gameState.getState()); // Immediate state update after attach_accepted
     } else {
       gameState.declineAttachment(playerId, data.fromPlayerId);
       io.to(data.fromPlayerId).emit('attach_declined', {

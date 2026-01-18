@@ -280,7 +280,10 @@ class PlayerController {
     //console.log('[Controller.update] keys=', this.keys, 'pos=', this.position.x.toFixed(1), this.position.z.toFixed(1));
 
     // Update position based on WASD input
-    this.updateMovement(deltaTime);
+    // If attached and not the controller, do not allow walking movement
+    if (!(this.attachedTo && !this.isControlling)) {
+      this.updateMovement(deltaTime);
+    }
 
     // Update rotation based on mouse input
     this.updateRotation();
@@ -339,12 +342,12 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                                              * Update player position based on WASD movement
-                                                              * W = forward (toward gaze)
-                                                              * S = backward
-                                                              * A = 90° left of gaze
-                                                              * D = 90° right of gaze
-                                                              */
+                                                               * Update player position based on WASD movement
+                                                               * W = forward (toward gaze)
+                                                               * S = backward
+                                                               * A = 90° left of gaze
+                                                               * D = 90° right of gaze
+                                                               */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
     const backwardMultiplier = (CONFIG && CONFIG.PLAYER_BACKWARD_SPEED_MULTIPLIER) || 0.5;

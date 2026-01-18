@@ -308,9 +308,17 @@ class GameClient {
     this.network.on('attach_accepted', (data) => {
       this.ui.showMessage('Attachment accepted! 💙', 'normal');
       // Update controller attachedTo
-      if (this.controller && this.network.playerId && (data.player1 === this.network.playerId || data.player2 === this.network.playerId)) {
-        const other = data.player1 === this.network.playerId ? data.player2 : data.player1;
-        this.controller.attachedTo = other;
+      if (this.controller && this.network.playerId) {
+        // player1 is the responder (target) and becomes the controller/walking player
+        const isPlayer1 = data.player1 === this.network.playerId;
+        const isPlayer2 = data.player2 === this.network.playerId;
+        if (isPlayer1) {
+          this.controller.attachedTo = data.player2;
+          this.controller.isControlling = true;
+        } else if (isPlayer2) {
+          this.controller.attachedTo = data.player1;
+          this.controller.isControlling = false;
+        }
       }
     });
 
@@ -384,6 +392,14 @@ class GameClient {
     // Find local player
     if (data.players && data.players.length > 0) {
       this.localPlayer = data.players.find(p => p.id === this.network.playerId);
+    }
+
+    // Apply controller attached/controlling flags from server for local player
+    if (this.localPlayer && this.controller) {
+      this.controller.attachedTo = this.localPlayer.attachedTo;
+      if (typeof this.localPlayer.isControlling === 'boolean') {
+        this.controller.isControlling = this.localPlayer.isControlling;
+      }
     }
 
     // Show/hide ready panel based on match active state

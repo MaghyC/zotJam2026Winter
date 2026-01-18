@@ -64,7 +64,7 @@ const CONFIG = {
     PLAYER_REGEN_INTERVAL: 5000,   // Regen every 5 seconds (ms)
     PLAYER_SPEED: 25,              // Units per second forward
     PLAYER_BACKWARD_SPEED_MULTIPLIER: 0.5, // 50% speed backward
-    PLAYER_HEIGHT: 1.8,            // Player height
+    PLAYER_HEIGHT: 1.6,            // Player height
 
     // Blink Mechanic
     PLAYER_BLINK_MAX_TIME: 15000,  // 15 seconds forced blink (ms)
@@ -102,6 +102,8 @@ const CONFIG = {
     // Pairing/Attachment
     PAIR_REQUEST_TIMEOUT: 30000,   // Request expires after 30s (ms)
     PAIR_BROADCAST_RANGE: 50,      // Broadcast range for nearby players
+    // Attachment offsets
+    ATTACH_BACK_DISTANCE: 1.5,     // How far behind the target the attached player is placed
 
     // Game Duration
     GAME_DURATION: 180000,         // 3 minute (ms)
