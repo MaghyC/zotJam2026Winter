@@ -277,89 +277,87 @@ class UIManager {
    */
   drawMinimap(player, gameState, arenaRadius) {
     const ctx = this.minimapCtx;
+    // If no player, fallback to center map at arena center
+    const viewRadius = 50; // show +/- 50 units around player
     const centerX = this.minimapWidth / 2;
     const centerY = this.minimapHeight / 2;
-    const scale = (this.minimapWidth / 2) / 50;
+    const scale = (this.minimapWidth / 2) / viewRadius;
 
     ctx.fillStyle = 'rgba(0, 20, 50, 0.9)';
     ctx.fillRect(0, 0, this.minimapWidth, this.minimapHeight);
 
-    // Arena boundary
-    ctx.strokeStyle = '#0099ff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, (arenaRadius / 50) * (this.minimapWidth / 2), 0, Math.PI * 2);
-    ctx.stroke();
-
     if (!gameState) return;
 
-    // Safe zone
-    const safeRadius = gameState.arenaSafeRadius || arenaRadius;
-    ctx.strokeStyle = '#ff0000';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, (safeRadius / 50) * (this.minimapWidth / 2), 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    // If we have a local player, center the map on them and rotate so their forward is up
+    const local = player;
+    const yaw = (local && local.rotation && typeof local.rotation.y === 'number') ? local.rotation.y : 0;
 
-    // Player
-    if (player) {
-      ctx.fillStyle = '#ffff00';
-      const playerX = centerX + (player.position.x * scale);
-      const playerY = centerY + (player.position.z * scale);
-      ctx.fillRect(playerX - 3, playerY - 3, 6, 6);
-
-      ctx.strokeStyle = '#ffff00';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(playerX, playerY);
-      ctx.lineTo(playerX + player.gaze.x * 10, playerY + player.gaze.z * 10);
-      ctx.stroke();
+    // Draw other entities relative to player and rotated by -yaw
+    function worldToMap(dx, dz) {
+      // rotate by -yaw
+      const cos = Math.cos(yaw);
+      const sin = Math.sin(yaw);
+      const rx = dx * cos + dz * sin; // dx*cos + dz*sin
+      const rz = -dx * sin + dz * cos; // -dx*sin + dz*cos
+      return { x: centerX + rx * scale, y: centerY - rz * scale };
     }
 
-    // Other players
+    // Draw obstacles (server-provided if present)
+    ctx.fillStyle = '#888888';
+    const obstacles = gameState.obstacles || [];
+    for (const obs of obstacles) {
+      const dx = obs.position.x - (local ? local.position.x : 0);
+      const dz = obs.position.z - (local ? local.position.z : 0);
+      const m = worldToMap(dx, dz);
+      const w = (obs.width || 6) * scale;
+      const h = (obs.depth || 6) * scale;
+      ctx.fillRect(m.x - w / 2, m.y - h / 2, w, h);
+    }
+
+    // Draw other players
     if (gameState.players) {
       for (const p of gameState.players) {
-        if (p.id === player?.id) continue;
-        ctx.fillStyle = p.attachedTo === player?.id ? '#0088ff' : '#00ff00';
-        const px = centerX + (p.position.x * scale);
-        const py = centerY + (p.position.z * scale);
-        ctx.fillRect(px - 2, py - 2, 4, 4);
+        if (p.id === local?.id) continue;
+        const dx = p.position.x - (local ? local.position.x : 0);
+        const dz = p.position.z - (local ? local.position.z : 0);
+        const m = worldToMap(dx, dz);
+        ctx.fillStyle = p.attachedTo === local?.id ? '#0088ff' : '#00ff00';
+        ctx.fillRect(m.x - 3, m.y - 3, 6, 6);
       }
     }
 
-    // Obstacles (simple static layout)
-    const obstacles = [
-      { x: 40, z: 40, w: 8, d: 8 },
-      { x: -50, z: 30, w: 6, d: 6 },
-      { x: 0, z: -60, w: 10, d: 10 },
-      { x: -40, z: -40, w: 5, d: 5 },
-      { x: 60, z: -20, w: 7, d: 7 },
-      { x: -30, z: 0, w: 6, d: 6 }
-    ];
-    ctx.fillStyle = '#888888';
-    for (const obs of obstacles) {
-      const px = centerX + (obs.x * scale);
-      const py = centerY + (obs.z * scale);
-      const w = obs.w * scale;
-      const h = obs.d * scale;
-      ctx.fillRect(px - w / 2, py - h / 2, w, h);
-    }
-
-    // Monsters
+    // Draw monsters
     if (gameState.monsters) {
       const now = Date.now();
       for (const m of gameState.monsters) {
-        // Red for first 10s after spawn, then orange
+        const dx = m.position.x - (local ? local.position.x : 0);
+        const dz = m.position.z - (local ? local.position.z : 0);
+        const mm = worldToMap(dx, dz);
         const isFreshSpawn = m.spawnTime && (now - m.spawnTime < 10000);
         ctx.fillStyle = isFreshSpawn ? '#ff0000' : '#ff6600';
-        const mx = centerX + (m.position.x * scale);
-        const my = centerY + (m.position.z * scale);
         ctx.beginPath();
-        ctx.arc(mx, my, 3, 0, Math.PI * 2);
+        ctx.arc(mm.x, mm.y, 3, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+
+    // Orbs intentionally not shown on minimap — obstacles are shown instead
+
+    // Draw local player at center
+    if (local) {
+      ctx.fillStyle = '#ffff00';
+      ctx.fillRect(centerX - 4, centerY - 4, 8, 8);
+
+      // Draw heading based on rotation.y (yaw). Forward = up.
+      const len = 12;
+      const hx = Math.sin(yaw) * len;
+      const hy = Math.cos(yaw) * len;
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(centerX + hx, centerY - hy);
+      ctx.stroke();
     }
   }
 
