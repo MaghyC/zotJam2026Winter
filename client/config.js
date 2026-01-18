@@ -29,7 +29,7 @@ const CONFIG = {
   PLAYER_MAX_HEALTH: 100,
   PLAYER_REGEN_AMOUNT: 1, // Health per regen tick
   PLAYER_REGEN_INTERVAL: 5000, // Regen every 5 seconds
-  PLAYER_BLINK_MAX_TIME: 20000, // Forced blink after 20s of staring
+  PLAYER_BLINK_MAX_TIME: 15000, // Forced blink after 20s of staring
   PLAYER_BLINK_VOLUNTARY_REFRESH: 10000, // Voluntary blink adds 10s
   PLAYER_BLINK_BLACKOUT: 500, // Screen blackout duration (ms)
 

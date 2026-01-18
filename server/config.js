@@ -67,7 +67,7 @@ const CONFIG = {
     PLAYER_HEIGHT: 1.8,            // Player height
 
     // Blink Mechanic
-    PLAYER_BLINK_MAX_TIME: 20000,  // 20 seconds forced blink (ms)
+    PLAYER_BLINK_MAX_TIME: 15000,  // 20 seconds forced blink (ms)
     PLAYER_BLINK_ADD_VOLUNTARY: 10000, // +10s for voluntary blink (ms)
     PLAYER_BLINK_BLACKOUT_DURATION: 500, // 0.5s can't see (ms)
 

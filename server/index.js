@@ -394,6 +394,9 @@ io.on('connection', (socket) => {
         })),
         active: gameState.active,
       },
+      serverConfig: {
+        PLAYER_BLINK_MAX_TIME: CONFIG.PLAYER_BLINK_MAX_TIME,
+      },
     });
 
     // Notify others

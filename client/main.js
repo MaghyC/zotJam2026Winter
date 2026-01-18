@@ -198,6 +198,14 @@ class GameClient {
       // Connect and wait for join response
       const joinData = await this.network.connect(this.username, this.playerId);
 
+      // Apply server-provided config (if present) to client constants
+      if (joinData && joinData.serverConfig) {
+        if (window.GAME_TYPES && window.GAME_TYPES.GAME_CONSTANTS) {
+          // copy over numeric values from serverConfig
+          Object.assign(window.GAME_TYPES.GAME_CONSTANTS, joinData.serverConfig);
+        }
+      }
+
       // Store the received player ID
       this.playerId = this.network.playerId;
       localStorage.setItem('playerId', this.playerId);

@@ -271,8 +271,9 @@ class UIManager {
    * Update blink timer display (both center panel and sidebar)
    */
   updateBlinkTimer(secondsRemaining) {
-    const maxSeconds = 20; // UI assumes 20s max blink timer
-
+    // Use configured blink max if available, otherwise default to 15s
+    const maxSeconds = (window.GAME_TYPES && window.GAME_TYPES.GAME_CONSTANTS && window.GAME_TYPES.GAME_CONSTANTS.PLAYER_BLINK_MAX_TIME) / 1000 || 15;
+    //console.log('[UI] Updating blink timer:', secondsRemaining, 'maxSeconds:', maxSeconds);
     // Don't display center circle - only sidebar
     // if (secondsRemaining > 0) {
     //   this.elements.blinkTimerPanel.style.display = 'flex';
