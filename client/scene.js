@@ -184,6 +184,9 @@ class GameScene {
   updatePlayers(players) {
     const serverIds = new Set();
     const localPlayerId = window.gameClient?.network?.playerId;
+    // Determine if local player is currently controlling (so we can hide attached partner)
+    const localPlayerRecord = (players || []).find(p => p.id === localPlayerId);
+    const localIsController = !!(localPlayerRecord && localPlayerRecord.isControlling);
 
     for (const player of players) {
 
@@ -202,6 +205,20 @@ class GameScene {
 
       // Skip rendering local player (first-person view)
       if (player.id === localPlayerId) {
+        continue;
+      }
+
+      // If this player is attached to the local player, and the local player
+      // is the controller (walking), do not render the attached partner on
+      // the local client's view until they detach.
+      if (player.attachedTo === localPlayerId && localIsController) {
+        const existing = this.playerMeshes.get(player.id);
+        if (existing) {
+          this.scene.remove(existing);
+          this.playerMeshes.delete(player.id);
+        }
+        // Still mark as seen by server but skip visual rendering
+        serverIds.add(player.id);
         continue;
       }
 
