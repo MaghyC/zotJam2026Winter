@@ -67,7 +67,7 @@ const CONFIG = {
     PLAYER_HEIGHT: 1.8,            // Player height
 
     // Blink Mechanic
-    PLAYER_BLINK_MAX_TIME: 15000,  // 20 seconds forced blink (ms)
+    PLAYER_BLINK_MAX_TIME: 15000,  // 15 seconds forced blink (ms)
     PLAYER_BLINK_ADD_VOLUNTARY: 10000, // +10s for voluntary blink (ms)
     PLAYER_BLINK_BLACKOUT_DURATION: 500, // 0.5s can't see (ms)
 
@@ -104,8 +104,8 @@ const CONFIG = {
     PAIR_BROADCAST_RANGE: 50,      // Broadcast range for nearby players
 
     // Game Duration
-    GAME_DURATION: 180000,         // 3 minute matches (ms)
-    GAME_AUTO_START_DELAY: 5000,   // Auto-start after 5s with 2+ players (ms)
+    GAME_DURATION: 180000,         // 3 minute (ms)
+    GAME_AUTO_START_DELAY: 10000,   // Auto-start after 10s with 2+ players (ms)
     GAME_AUTO_START_MIN_PLAYERS: 2, // Minimum players to auto-start
 
     // Reconnection
