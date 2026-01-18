@@ -171,8 +171,14 @@ class GameScene {
 
     for (const player of players) {
 
-      // Skip dead players - don't render them
+      // Skip dead players - don't render them and remove any existing mesh
       if (player.state === 'dead') {
+        const existing = this.playerMeshes.get(player.id);
+        if (existing) {
+          this.scene.remove(existing);
+          this.playerMeshes.delete(player.id);
+          console.log(`[Scene] Removed dead player mesh ${player.id.slice(0, 6)}`);
+        }
         continue;
       }
 

@@ -41,6 +41,11 @@ class PlayerController {
     this.attachRequest = null; // { from, to, state }
     this.targetedPlayer = null; // Player currently being pointed at
 
+    // Spectator (dead) camera state
+    this.isSpectator = false;
+    this.spectatorHeight = 12;
+    this.spectatorSpeed = 20;
+
     // Setup event listeners
     this.setupInputListeners();
   }
@@ -207,6 +212,17 @@ class PlayerController {
   update(deltaTime) {
     const now = Date.now();
 
+    // If in spectator mode (dead), skip gameplay timers and only move camera
+    if (this.isSpectator) {
+      this.updateRotation();
+      this.updateSpectatorMovement(deltaTime);
+      this.updateGaze();
+      if (this.scene) {
+        this.scene.updateCamera(this.position, this.rotation);
+      }
+      return;
+    }
+
     const remainingMs = CONFIG.PLAYER_BLINK_MAX_TIME - (now - this.lastAutoBlinkTime);
     let remaining = remainingMs / 1000;
     if (!Number.isFinite(remaining) || remaining < 0) remaining = 0;
@@ -249,6 +265,32 @@ class PlayerController {
     }
   }
 
+  /**
+   * Move spectator camera (dead player) using WASD, keeping a higher vantage point.
+   */
+  updateSpectatorMovement(deltaTime) {
+    const speed = this.spectatorSpeed;
+    const moveDistance = speed * deltaTime;
+
+    // Flattened forward/right vectors from yaw only
+    const yaw = this.rotation.y;
+    const forward = { x: Math.sin(yaw), z: Math.cos(yaw) };
+    const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+
+    let moveX = 0;
+    let moveZ = 0;
+
+    if (this.keys['w']) { moveX += forward.x * moveDistance; moveZ += forward.z * moveDistance; }
+    if (this.keys['s']) { moveX -= forward.x * moveDistance; moveZ -= forward.z * moveDistance; }
+    if (this.keys['a']) { moveX -= right.x * moveDistance; moveZ -= right.z * moveDistance; }
+    if (this.keys['d']) { moveX += right.x * moveDistance; moveZ += right.z * moveDistance; }
+
+    this.position.x += moveX;
+    this.position.z += moveZ;
+    // Keep elevated spectator height
+    this.position.y = Math.max(this.spectatorHeight, this.position.y);
+  }
+
 
   // In handleKeyDown
 
@@ -264,12 +306,12 @@ class PlayerController {
  * A = 90° left of gaze
  * D = 90° right of gaze
  *//**
-                                                       * Update player position based on WASD movement
-                                                       * W = forward (toward gaze)
-                                                       * S = backward
-                                                       * A = 90° left of gaze
-                                                       * D = 90° right of gaze
-                                                       */
+                                                        * Update player position based on WASD movement
+                                                        * W = forward (toward gaze)
+                                                        * S = backward
+                                                        * A = 90° left of gaze
+                                                        * D = 90° right of gaze
+                                                        */
   updateMovement(deltaTime) {
     const MOVE_SPEED = 20; // units per second (tweak as needed)
     const backwardMultiplier = (CONFIG && CONFIG.PLAYER_BACKWARD_SPEED_MULTIPLIER) || 0.5;
@@ -416,6 +458,32 @@ class PlayerController {
       this.gaze.x /= gazeLen;
       this.gaze.y /= gazeLen;
       this.gaze.z /= gazeLen;
+    }
+  }
+
+  /**
+   * Enter spectator (dead) mode, lifting camera and pitching downward.
+   */
+  enterSpectator(basePosition) {
+    this.isSpectator = true;
+    this.position = {
+      x: basePosition?.x ?? this.position.x,
+      y: (basePosition?.y ?? this.position.y) + this.spectatorHeight,
+      z: basePosition?.z ?? this.position.z,
+    };
+    // Look downward at a 45° angle by default
+    this.rotation.x = -Math.PI / 4;
+    // Keep current yaw if available
+    this.updateGaze();
+  }
+
+  /**
+   * Exit spectator mode (e.g., on respawn/new match)
+   */
+  exitSpectator(basePosition) {
+    this.isSpectator = false;
+    if (basePosition) {
+      this.position = { ...basePosition };
     }
   }
   /**

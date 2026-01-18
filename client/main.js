@@ -400,8 +400,17 @@ class GameClient {
 
       // Only reconcile position when game is ACTIVE (match running)
       // During lobby phase, allow full client-side prediction without server snapping
-      if (this.controller && data.active) {
+      if (this.controller && data.active && this.localPlayer.state !== 'dead') {
         this.controller.setPosition(this.localPlayer.position);
+      }
+
+      // Enter/exit spectator mode based on death state
+      if (this.controller) {
+        if (this.localPlayer.state === 'dead' && !this.controller.isSpectator) {
+          this.controller.enterSpectator(this.localPlayer.position);
+        } else if (this.localPlayer.state !== 'dead' && this.controller.isSpectator) {
+          this.controller.exitSpectator(this.localPlayer.position);
+        }
       }
 
       // Draw minimap

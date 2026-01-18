@@ -76,7 +76,7 @@ const CONFIG = {
     MONSTER_SPEED: 200,             // Units per second
     MONSTER_ATTACK_COOLDOWN: 1500, // 1.5s between attacks (ms)
     MONSTER_ATTACK_DAMAGE: 60, // 60of player max health
-    MONSTER_DETECTION_RANGE: 4000,   // Detection range (units)
+    MONSTER_DETECTION_RANGE: 8000,   // Detection range (units)
     MONSTER_DETECTION_CONE_ANGLE: 0.6, // ~70 degrees
     MONSTER_BLIND_SPOT_ANGLE: 0.2, // ~22 degrees
     MONSTER_SPAWN_DELAY: 30000,    // Wait 30s before first spawn (ms)
@@ -86,7 +86,7 @@ const CONFIG = {
     MONSTER_ROAR_IMMOBILE_TIME: 2000, // immobile during entire roar
 
     // Vision
-    VISION_DETECTION_RANGE: 5000,    // How far monsters can see
+    VISION_DETECTION_RANGE: 10000,    // How far monsters can see
     VISION_CONE_ANGLE: 0.6,        // Vision cone angle
     BLIND_SPOT_CONE_ANGLE: 0.2,    // Blind spot cone angle
     GAZE_RAYCAST_CONE_ANGLE: 0.6,        // Vision raycast cone angle
