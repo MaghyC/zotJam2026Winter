@@ -320,7 +320,9 @@ class GameClient {
 
     this.network.on('control_request', (data) => {
       if (data.toPlayerId === this.network.playerId) {
-        this.ui.showControlRequest(data.fromPlayerId);
+        const requester = (this.gameState?.players || []).find(p => p.id === data.fromPlayerId);
+        if (requester) this.ui.showControlRequest(requester.username, data.fromPlayerId);
+        else this.ui.showControlRequest(data.fromPlayerId);
       }
     });
 
@@ -332,6 +334,8 @@ class GameClient {
       // notify requester if they are involved
       if (data.toPlayerId === this.network.playerId || data.fromPlayerId === this.network.playerId) {
         this.ui.showMessage(`Control response: ${data.accepted ? 'accepted' : 'declined'}`, 'normal');
+        // Hide pending control notification if present
+        this.ui.hideControlRequest?.();
       }
     });
 

@@ -154,9 +154,42 @@ class UIManager {
   }
 
   showControlRequest(fromPlayerId) {
-    this.elements.controlNotificationText.textContent = `${fromPlayerId} requests control`;
+    // Accept either (name, id) or id-only
+    let name = null;
+    let id = null;
+    if (arguments.length === 2) {
+      name = arguments[0];
+      id = arguments[1];
+    } else if (typeof fromPlayerId === 'string') {
+      id = fromPlayerId;
+    }
+
+    const display = name || (id ? id.slice(0, 6) : 'Unknown');
+    this.elements.controlNotificationText.textContent = `${display} requests control (5s)`;
     this.elements.controlNotification.classList.add('show');
-    this.controlRequestData = { fromPlayerId };
+    this.controlRequestData = { fromPlayerName: name, fromPlayerId: id };
+
+    // Start countdown for auto-decline (server auto-declines after 5s)
+    if (this.controlTimer) clearInterval(this.controlTimer);
+    this.controlCountdown = 5.0;
+    this.controlTimer = setInterval(() => {
+      this.controlCountdown = Math.max(0, this.controlCountdown - 0.25);
+      const sec = this.controlCountdown.toFixed(1);
+      this.elements.controlNotificationText.textContent = `${display} requests control (${sec}s)`;
+      if (this.controlCountdown <= 0) {
+        this.hideControlRequest();
+      }
+    }, 250);
+  }
+
+  hideControlRequest() {
+    this.elements.controlNotification.classList.remove('show');
+    if (this.controlTimer) {
+      clearInterval(this.controlTimer);
+      this.controlTimer = null;
+    }
+    this.controlRequestData = null;
+    this.controlCountdown = 0;
   }
 
   /**
