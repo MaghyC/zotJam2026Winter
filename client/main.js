@@ -247,6 +247,11 @@ class GameClient {
    * Setup network event callbacks
    */
   setupNetworkCallbacks() {
+    if (!this.network) {
+      console.error('[Main] Cannot setup callbacks: network is not initialized');
+      return;
+    }
+
     this.network.on('state_update', (data) => {
       this.onStateUpdate(data);
     });

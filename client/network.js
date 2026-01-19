@@ -10,23 +10,21 @@
 class NetworkManager {
   constructor(serverUrl = null) {
     // Auto-detect server URL
-    if (!serverUrl) {
-      this.serverUrl = serverUrl; // 可以为 null
-      this.socket = null;
-      this.playerId = null;
-      this.lobbyCode = null;
-      this.isConnected = false;
-      this.isReady = false;
-      this.previousPlayerId = null;
+    this.serverUrl = serverUrl; // 可以为 null
+    this.socket = null;
+    this.playerId = null;
+    this.lobbyCode = null;
+    this.isConnected = false;
+    this.isReady = false;
+    this.previousPlayerId = null;
 
-      this.lastMessageTime = {};
-      this.messageRateLimits = {
-        player_input: 1000 / 60,
-        broadcast_timer: 2000,
-      };
+    this.lastMessageTime = {};
+    this.messageRateLimits = {
+      player_input: 1000 / 60,
+      broadcast_timer: 2000,
+    };
 
-      this.callbacks = {};
-    }
+    this.callbacks = {};
   }
 
   /**
