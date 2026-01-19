@@ -185,7 +185,7 @@ class GameClient {
 
       // Connect to server with username and playerId if reconnecting
 
-      const SERVER_URL = 'https://zotjam2026winter.onrender.com/'; //  Render URL
+      const SERVER_URL = 'https://zotjam2026winter.onrender.com'; //  Render URL
       this.network = new NetworkManager(SERVER_URL);
 
       // Try to reconnect if we have a stored player ID
