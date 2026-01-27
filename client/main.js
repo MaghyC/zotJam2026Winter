@@ -162,6 +162,11 @@ class GameClient {
         this.network.sendReady(this.ui.isPlayerReady);
       });
 
+      // Setup leave lobby button
+      document.getElementById('leaveLobbyBtn').addEventListener('click', () => {
+        this.leaveLobby();
+      });
+
       // Setup attach accept button
       document.getElementById('attachAcceptBtn').addEventListener('click', () => {
         if (this.currentAttachRequest) {
@@ -538,6 +543,54 @@ class GameClient {
     this.savePlayerSession();
 
     // Reload the page to start fresh
+  }
+
+  /**
+   * Leave current lobby and return to lobby selection
+   */
+  leaveLobby() {
+    console.log('[Main] Leaving lobby...');
+
+    try {
+      // Tell server to leave the lobby
+      if (this.network && this.network.socket) {
+        this.network.socket.emit('leave_lobby', {});
+      }
+
+      // Stop render loop
+      if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+      }
+
+      // Clean up game state
+      this.localPlayer = null;
+      this.gameState = null;
+      this.collectedOrbIds.clear();
+      this.currentAttachRequest = null;
+      this.ui.isPlayerReady = false;
+
+      // Hide game UI
+      this.ui.hideReadyPanel();
+      if (this.scene && this.scene.renderer) {
+        this.scene.renderer.domElement.style.display = 'none';
+      }
+
+      // Show message
+      this.ui.showMessage('Left lobby. Returning to login...', 'normal');
+
+      // Wait a moment then reload to show login screen
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
+    } catch (error) {
+      console.error('[Main] Error leaving lobby:', error);
+      this.ui.showMessage('Error leaving lobby. Reloading...', 'warning');
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
+  }
     location.reload();
   }
 

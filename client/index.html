@@ -567,6 +567,32 @@
       transform: scale(0.98);
     }
 
+    /* Leave Lobby Button */
+    #leaveLobbyBtn {
+      width: 100%;
+      padding: 8px;
+      margin-top: 8px;
+      background-color: #ff4444;
+      border: 2px solid #ff6666;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    #leaveLobbyBtn:hover {
+      background-color: #ff5555;
+      border-color: #ff8888;
+      box-shadow: 0 0 10px #ff4444;
+    }
+
+    #leaveLobbyBtn:active {
+      transform: scale(0.95);
+      background-color: #ff3333;
+    }
+
     /* Attach Request Notification - Center Top */
     #attachNotification {
       position: fixed;
@@ -728,6 +754,7 @@
     <h3>LOBBY</h3>
     <div id="readyCount">0/8 Ready</div>
     <button id="readyBtn">READY</button>
+    <button id="leaveLobbyBtn">LEAVE LOBBY</button>
   </div>
 
   <!-- Attach Request Notification -->

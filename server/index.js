@@ -782,6 +782,47 @@ io.on('connection', (socket) => {
   });
 
   /**
+   * leave_lobby - Player explicitly leaves the lobby to join another
+   */
+  socket.on('leave_lobby', () => {
+    const playerId = socket.id;
+    const lobbyId = playerToLobby.get(playerId);
+
+    if (!lobbyId) {
+      logger.warn(`Leave lobby failed: Player ${playerId} not in any lobby`);
+      socket.emit('leave_lobby_response', { success: false, reason: 'Not in a lobby' });
+      return;
+    }
+
+    logger.info(`Player ${playerId} leaving lobby ${lobbyId}`);
+
+    // Remove player from lobby
+    lobbyManager.removePlayerFromLobby(playerId);
+    playerToLobby.delete(playerId);
+    
+    // Clear any reconnect timers
+    if (playerReconnectTimers.has(playerId)) {
+      clearTimeout(playerReconnectTimers.get(playerId));
+      playerReconnectTimers.delete(playerId);
+    }
+
+    // Remove from disconnected players if present
+    disconnectedPlayers.delete(playerId);
+
+    // Notify other players
+    io.to(lobbyId).emit('player_left', { playerId });
+
+    logger.info(`Player ${playerId} successfully left lobby ${lobbyId}`);
+    socket.emit('leave_lobby_response', { success: true });
+
+    // Stop game loop if no more players in any active lobbies
+    const hasActivePlayers = Array.from(playerToLobby.values()).some(lid => lid === lobbyId);
+    if (!hasActivePlayers && lobbyManager.getLobby(lobbyId)?.players.size === 0) {
+      stopGameLoop();
+    }
+  });
+
+  /**
    * reconnect - Player reconnecting after temporary disconnect
    * Re-associates the socket with the player's existing state
    */
